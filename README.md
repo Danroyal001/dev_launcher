@@ -22,7 +22,7 @@ it see your installed apps on Android 11 and later.
 ## Build
 
 ```sh
-dartvel build apk     # Android
+dartvel build android # Android APK
 dartvel build web     # a labelled preview with example apps, for the browser
 dartvel test          # the matching and command tests
 ```
