@@ -1,59 +1,19 @@
-// The home screen: a clock, a prompt that opens apps and runs commands,
-// pinned apps, the developer's tools, and every app A to Z.
+// The home screen, over the phone's wallpaper: the clock, a prompt that
+// opens apps and runs commands, the apps put on the home screen, the dev
+// tools, and the dock. Swipe up, or the apps button, opens every app A to Z.
+// The same screen lays out for a round watch, a phone, a tablet or
+// Chromebook, and a TV across a room.
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
+import '../services/launcher_store.dart';
+import 'app_tiles.dart';
 import 'theme.dart';
 
-const String pinsFile = 'dev-launcher/pins.json';
-
-/// Shown where the device cannot list apps (a browser), clearly as examples.
-const List<DVInstalledApp> previewApps = <DVInstalledApp>[
-  DVInstalledApp(packageName: 'com.termux', label: 'Termux'),
-  DVInstalledApp(packageName: 'com.github.android', label: 'GitHub'),
-  DVInstalledApp(packageName: 'com.postman.app', label: 'Postman'),
-  DVInstalledApp(packageName: 'com.android.chrome', label: 'Chrome'),
-  DVInstalledApp(packageName: 'com.google.android.gm', label: 'Gmail'),
-  DVInstalledApp(packageName: 'com.slack', label: 'Slack'),
-  DVInstalledApp(packageName: 'com.spotify.music', label: 'Spotify'),
-  DVInstalledApp(packageName: 'com.whatsapp', label: 'WhatsApp'),
-];
-
 const Set<String> commandWords = <String>{'info', 'pin', 'unpin', 'uninstall'};
-
-/// What a launcher screen knows: the apps, the pins, and whether the apps
-/// are examples because this device cannot list its own.
-class const LauncherState({
-  final List<DVInstalledApp> apps = const <DVInstalledApp>[],
-  final List<String> pins = const <String>[],
-  final bool preview = false,
-  final bool loading = true,
-});
-
-DVInstalledApp? appByPackage(List<DVInstalledApp> apps, String package) {
-  for (final DVInstalledApp app in apps) {
-    if (app.packageName == package) return app;
-  }
-  return null;
-}
-
-Future<List<String>> readPins() async {
-  try {
-    final DVDeviceStorage storage = DV.Platform.fileStorage;
-    if (!await storage.exists(pinsFile)) return <String>[];
-    final Object? decoded = jsonDecode(utf8.decode(await storage.get(pinsFile)));
-    return decoded is List ? <String>[for (final Object? item in decoded) '$item'] : <String>[];
-  } on Object {
-    return <String>[];
-  }
-}
-
-/// Keeps [pins] on the phone.
-Future<void> writePins(List<String> pins) => DV.Platform.fileStorage.put(pinsFile, utf8.encode(jsonEncode(pins)));
 
 /// The day and date under the clock: Tue 10 Nov.
 String dayLine(DateTime now) {
@@ -64,43 +24,46 @@ String dayLine(DateTime now) {
 
 String twoDigits(int value) => value.toString().padLeft(2, '0');
 
+/// Follows the store from the first frame: names at once, icons as they come.
+void followStore(BuildContext context, DVSignal<LauncherSnapshot> snapshot) {
+  late final StreamSubscription<LauncherSnapshot> subscription;
+  subscription = LauncherStore.instance.changes.listen((LauncherSnapshot next) {
+    if (!context.mounted) {
+      subscription.cancel();
+      return;
+    }
+    snapshot.value = next;
+  });
+  snapshot.value = LauncherStore.instance.current;
+}
+
 @DVFunctionalWidget()
 Widget _launcherHome(BuildContext context) {
-  final DVSignal<LauncherState> state = context.signal(const LauncherState());
+  final LauncherStore store = LauncherStore.instance;
+  final DVSignal<LauncherSnapshot> snapshot = context.signal(store.current);
   final DVSignal<String> typed = context.signal('');
   final DVSignal<String> status = context.signal('');
+  final DVSignal<String> selected = context.signal('');
   final DVSignal<DateTime> now = context.signal(DateTime.now());
   final DVSignal<bool> started = context.signal(false);
-
-  Future<void> load() async {
-    final DVApps platformApps = DV.Platform.apps;
-    List<DVInstalledApp> found = previewApps;
-    bool preview = true;
-    if (platformApps.isSupported) {
-      preview = false;
-      try {
-        found = await platformApps.list();
-      } on Object catch (error) {
-        found = const <DVInstalledApp>[];
-        status.value = 'Could not read your apps: $error';
-      }
-    }
-    final List<String> pins = await readPins();
-    state.value = LauncherState(
-      apps: found,
-      preview: preview,
-      loading: false,
-      pins: pins.where((String package) => appByPackage(found, package) != null).toList(),
-    );
-  }
 
   if (!started.read()) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted || started.read()) return;
       started.value = true;
-      load();
-      // The clock: a minute is the finest the screen shows. The timer stops
-      // itself once this screen is gone.
+      followStore(context, snapshot);
+      store.start();
+      // Back from Settings (after choosing the home app) or from any app:
+      // ask again whether Dev Launcher is the home app.
+      late final StreamSubscription<DVAppLifecycle> lifecycle;
+      lifecycle = DV.lifecycle.app.changes.listen((DVAppLifecycle state) {
+        if (!context.mounted) {
+          lifecycle.cancel();
+          return;
+        }
+        if (state == DVAppLifecycle.ready) store.refreshDefault();
+      });
+      // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {
         if (!context.mounted) {
           timer.cancel();
@@ -111,151 +74,132 @@ Widget _launcherHome(BuildContext context) {
     });
   }
 
-  Future<void> savePins(List<String> pins) async {
-    state.value = LauncherState(apps: state.read().apps, preview: state.read().preview, loading: false, pins: pins);
-    try {
-      await writePins(pins);
-    } on Object catch (error) {
-      status.value = 'Could not save pins: $error';
-    }
+  final LauncherSnapshot current = snapshot.value;
+  final Size size = MediaQuery.sizeOf(context);
+  final ScreenKind kind = screenKindFor(width: size.width, height: size.height);
+  final bool watch = kind == ScreenKind.watch;
+  launcherTextScale = kind == ScreenKind.tv ? 1.5 : 1;
+  final double side = watch ? roundSafeInset(size.shortestSide) : (kind == ScreenKind.tv ? 56 : 20);
+  final int columns = gridColumns(kind, size.width - side * 2);
+  final double iconSize = switch (kind) { ScreenKind.watch => 40, ScreenKind.phone => 52, ScreenKind.tablet => 60, ScreenKind.tv => 72 };
+  final double clockSize = switch (kind) { ScreenKind.watch => 34, ScreenKind.phone => 64, ScreenKind.tablet => 80, ScreenKind.tv => 96 };
+  final DateTime time = now.value;
+
+  void openDrawer() => DV.Navigation.push(DVRoutes.apps);
+  Future<void> open(String package) async {
+    final String problem = await openApp(package);
+    status.value = problem;
+    if (problem.isEmpty) typed.value = '';
   }
 
   Future<void> act(LauncherAction action, String package) async {
-    final LauncherState current = state.read();
-    final DVInstalledApp? app = appByPackage(current.apps, package);
+    final DVInstalledApp? app = current.app(package);
     if (app == null) return;
-    if (current.preview && action != LauncherAction.pin && action != LauncherAction.unpin) {
-      status.value = 'Preview: on your phone this would ${action.name} ${app.label}.';
-      return;
-    }
-    try {
-      switch (action) {
-        case .open:
-          await DV.Platform.apps.open(package);
-          typed.value = '';
-        case .info:
-          await DV.Platform.apps.openSettings(package);
-        case .uninstall:
-          await DV.Platform.apps.uninstall(package);
-        case .pin:
-          if (!current.pins.contains(package)) await savePins(<String>[...current.pins, package]);
-          status.value = 'Pinned ${app.label}.';
-        case .unpin:
-          await savePins(current.pins.where((String pinned) => pinned != package).toList());
-          status.value = 'Unpinned ${app.label}.';
-        case .none:
-          break;
-      }
-    } on Object catch (error) {
-      status.value = '$error'.replaceFirst('Bad state: ', '');
+    switch (action) {
+      case .open:
+        await open(package);
+      case .pin:
+        status.value = await store.pinHome(package, pinned: true);
+        if (status.read().isEmpty) status.value = '${app.label} is on the home screen.';
+        typed.value = '';
+      case .unpin:
+        status.value = await store.pinHome(package, pinned: false);
+        if (status.read().isEmpty) status.value = '${app.label} is off the home screen.';
+        typed.value = '';
+      case .info:
+      case .uninstall:
+        selected.value = package;
+      case .none:
+        break;
     }
   }
 
-  List<LauncherApp> launcherApps() => <LauncherApp>[for (final DVInstalledApp app in state.read().apps) LauncherApp(packageName: app.packageName, label: app.label)];
-
   void submit() {
-    final LauncherCommand command = parseCommand(typed.read(), launcherApps());
+    final LauncherCommand command = parseCommand(typed.read(), current.launcherApps);
     if (command.action == LauncherAction.none) {
       status.value = command.message;
       return;
     }
     act(command.action, command.app!.packageName);
-    if (command.action == LauncherAction.pin || command.action == LauncherAction.unpin) typed.value = '';
   }
 
-  final LauncherState current = state.value;
   final String query = typed.value;
   final List<String> words = query.trim().split(' ');
   final String search = words.length > 1 && commandWords.contains(words.first.toLowerCase()) ? query.substring(query.indexOf(' ') + 1) : query;
-  final List<DVInstalledApp> matches = <DVInstalledApp>[
-    for (final LauncherApp app in matchApps(<LauncherApp>[for (final DVInstalledApp each in current.apps) LauncherApp(packageName: each.packageName, label: each.label)], search))
-      if (appByPackage(current.apps, app.packageName) case final DVInstalledApp found) found,
-  ];
-  final List<DVInstalledApp> pinned = <DVInstalledApp>[for (final String package in current.pins) if (appByPackage(current.apps, package) case final DVInstalledApp app) app];
+  final List<DVInstalledApp> matches = installedFor(current, matchApps(current.launcherApps, search));
+  final List<DVInstalledApp> home = current.appsFor(current.layout.home);
   final List<DVInstalledApp> devTools = current.apps.where((DVInstalledApp app) => isDevTool(app.packageName)).toList();
-  final double width = MediaQuery.sizeOf(context).width;
-  final int columns = ((width - 24) / 96).floor().clamp(3, 10);
-  final DateTime time = now.value;
+  final List<DVInstalledApp> dock = current.appsFor(current.dock);
+  final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
 
-  return DVBox.list(<Widget>[
+  final Widget appsButton = DVBox(
+    DVText('⋮⋮').modifier(mono(size: watch ? 18 : 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
+    DVModifier().width(iconSize).height(iconSize).backgroundColor(const Color(0x33FFFFFF)).rounded(iconSize * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
+  );
+
+  final Widget content = DVBox.list(<Widget>[
     if (current.preview)
-      DVText('Preview. Dev Launcher is an Android home screen; here it shows example apps. Install it on Android to see yours.').modifier(
-        mono(size: 13, color: LauncherColors.muted).backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(10).padding(14),
-      ),
+      DVText('Preview: Dev Launcher is an Android home screen. Here it shows example apps.').modifier(mono(size: 13, color: LauncherColors.muted).backgroundColor(LauncherColors.surface).rounded(10).padding(12)),
     DVBox.list(<Widget>[
-      DVText('${twoDigits(time.hour)}:${twoDigits(time.minute)}').modifier(mono(size: 64, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, ${twoDigits(time.hour)}:${twoDigits(time.minute)}')),
-      DVText('${dayLine(time)} · ${current.apps.length} apps').modifier(mono(size: 15, color: LauncherColors.muted)),
-    ], spacing: 8),
-    DVBox.row(<Widget>[
-      DVText('❯').modifier(mono(size: 18, bold: true, color: LauncherColors.accent)),
-      DVText(query).modifier(
-        mono(size: 16).input(
-          label: 'Command',
-          hint: 'open an app or run a command',
-          onChanged: (String value) {
-            typed.value = value;
-            status.value = '';
-          },
-          onSubmitted: submit,
+      DVText('${twoDigits(time.hour)}:${twoDigits(time.minute)}').modifier(mono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, ${twoDigits(time.hour)}:${twoDigits(time.minute)}').align(watch ? Alignment.center : Alignment.centerLeft)),
+      DVText(watch ? dayLine(time) : '${dayLine(time)} · ${current.apps.length} apps').modifier(mono(size: watch ? 12 : 15, color: LauncherColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
+    ], spacing: 6),
+    if (!current.isDefault && !current.preview)
+      DVBox.list(<Widget>[
+        DVText('Dev Launcher is not your home app yet.').modifier(mono(size: 14)),
+        DVText('Make it my home app').modifier(
+          mono(size: 14, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(10).paddingSymmetric(horizontal: 16, vertical: 12).minimumTapTarget(width: 48, height: 48).tooltip('Ask Android to make Dev Launcher the home app').onTap(() async {
+            status.value = await store.askToBeDefault();
+          }),
         ),
-      ),
-    ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(10).paddingSymmetric(horizontal: 14, vertical: 4)),
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13, color: LauncherColors.muted).semanticRole('status')),
+      ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.accent)).rounded(14).padding(14)),
+    if (!watch)
+      DVBox.row(<Widget>[
+        DVText('❯').modifier(mono(size: 18, bold: true, color: LauncherColors.accent)),
+        DVText(query).modifier(
+          mono(size: 16).input(
+            label: 'Command',
+            hint: 'open an app or run a command',
+            onChanged: (String value) {
+              typed.value = value;
+              status.value = '';
+            },
+            onSubmitted: submit,
+          ),
+        ),
+      ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
     if (query.trim().isNotEmpty) ...<Widget>[
-      for (final DVInstalledApp app in matches.take(6)) MatchRow(app: app, pinned: current.pins.contains(app.packageName), onAction: (LauncherAction action) => act(action, app.packageName)),
+      AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
       if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app.').modifier(mono(size: 13, color: LauncherColors.muted)),
     ],
-    if (pinned.isNotEmpty) AppSection(title: 'pinned', apps: pinned, columns: columns, onOpen: (String package) => act(.open, package)),
-    if (devTools.isNotEmpty) AppSection(title: 'dev tools', apps: devTools, columns: columns, onOpen: (String package) => act(.open, package)),
-    AppSection(title: current.loading ? 'reading apps…' : 'all apps · ${current.apps.length}', apps: current.apps, columns: columns, onOpen: (String package) => act(.open, package)),
-  ], spacing: 24, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: 20, right: 20, top: 28, bottom: 32).minHeight(MediaQuery.sizeOf(context).height)).scrollable();
-}
+    if (home.isNotEmpty)
+      AppSection(title: 'home', apps: home, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package)
+    else if (!current.loading && !watch)
+      DVText('Long-press any app to put it here or in the dock.').modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
+    if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
+    if (watch) DVBox(appsButton, DVModifier().centered()),
+  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28, bottom: 24)).scrollable();
 
-/// A labelled group of app tiles.
-@DVFunctionalWidget()
-Widget _appSection(BuildContext context, {required String title, required List<DVInstalledApp> apps, required int columns, required ValueChanged<String> onOpen}) =>
+  final Widget dockRow = DVBox.row(<Widget>[
+    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
+    appsButton,
+    for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
+  ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
+
+  // A browser has no wallpaper to show: the preview sits on the dark page.
+  return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVText('// $title').modifier(mono(size: 13, color: LauncherColors.accent).semanticHeading(2)),
-      if (apps.isNotEmpty)
-        DVBox.grid(<Widget>[for (final DVInstalledApp app in apps) AppTile(app: app, onOpen: () => onOpen(app.packageName))], columns: columns, spacing: 4, responsive: false),
-    ], spacing: 10);
-
-/// An app's icon, or its first letter on a tile when it has none.
-@DVFunctionalWidget()
-Widget _appIcon(BuildContext context, {required DVInstalledApp app, double size = 52}) {
-  final List<int>? icon = app.icon;
-  if (icon != null && icon.isNotEmpty) return DVBox.image(DVImage.memory(icon, alt: ''), width: size, height: size, fit: BoxFit.contain);
-  return DVBox(
-    DVText(app.label.isEmpty ? '?' : app.label.substring(0, 1).toUpperCase()).modifier(mono(size: size * 0.42, bold: true, color: LauncherColors.accent).align(Alignment.center)),
-    DVModifier().width(size).height(size).backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(size * 0.28).centered(),
-  );
-}
-
-@DVFunctionalWidget()
-Widget _appTile(BuildContext context, {required DVInstalledApp app, required VoidCallback onOpen}) => DVBox.list(<Widget>[
-      AppIcon(app: app),
-      DVText(app.label).modifier(mono(size: 12).maxLines(1).overflow(TextOverflow.ellipsis)),
-    ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(6).rounded(12).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(onOpen));
-
-/// A search result: the app, its package, and what can be done with it.
-@DVFunctionalWidget()
-Widget _matchRow(BuildContext context, {required DVInstalledApp app, required bool pinned, required ValueChanged<LauncherAction> onAction}) {
-  Widget action(String label, LauncherAction what, String hint, {Color color = LauncherColors.muted}) => DVText(label).modifier(
-        mono(size: 13, color: color).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 44, height: 44).tooltip(hint).onTap(() => onAction(what)),
-      );
-  return DVBox.list(<Widget>[
-    DVBox.row(<Widget>[
-      AppIcon(app: app, size: 32),
-      DVBox.list(<Widget>[
-        DVText(app.label).modifier(mono(size: 15)),
-        DVText(app.packageName).modifier(mono(size: 11, color: LauncherColors.muted)),
-      ], spacing: 2),
-    ], spacing: 12, crossAlign: DVCrossAlign.start, modifier: DVModifier().paddingSymmetric(vertical: 4).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(() => onAction(.open))),
-    DVBox.wrapLine(<Widget>[
-      action('open', .open, 'Open ${app.label}', color: LauncherColors.accent),
-      action(pinned ? 'unpin' : 'pin', pinned ? .unpin : .pin, pinned ? 'Take ${app.label} off the pinned row' : 'Pin ${app.label} to the home screen'),
-      action('info', .info, 'The system page for ${app.label}'),
-      action('uninstall', .uninstall, 'Ask Android to uninstall ${app.label}', color: LauncherColors.danger),
-    ], spacing: 4),
-  ], spacing: 0, modifier: DVModifier().border(Border(bottom: BorderSide(color: LauncherColors.rule))).paddingOnly(bottom: 6));
+      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 64))),
+      if (!watch) DVBox(dockRow, DVModifier().paddingOnly(left: side, right: side, bottom: 16).centered()),
+    ], spacing: 0),
+    if (sheetApp != null)
+      DVBox(
+        AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
+          status.value = problem;
+          selected.value = '';
+        }),
+        DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+      ),
+  ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).onSwipeUp(openDrawer)), DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0x00000000)));
 }

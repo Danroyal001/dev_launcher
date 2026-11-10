@@ -1,6 +1,8 @@
 // What the prompt understands: fuzzy app matching and a handful of commands.
 // Pure Dart, so it is tested without a phone.
 
+import 'dart:convert';
+
 /// An app as the launcher sees it.
 class const LauncherApp({required final String packageName, required final String label});
 
@@ -105,3 +107,99 @@ const List<String> devToolPackages = <String>[
 
 /// Whether [packageName] is one of [devToolPackages].
 bool isDevTool(String packageName) => devToolPackages.any(packageName.startsWith);
+
+/// One letter of the A-Z list and its apps.
+class const LetterSection({required final String letter, required final List<LauncherApp> apps});
+
+const Map<String, String> _plainLetters = <String, String>{
+  'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Ä': 'A', 'Å': 'A', 'Ç': 'C', 'È': 'E', 'É': 'E', 'Ê': 'E', 'Ë': 'E',
+  'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I', 'Ñ': 'N', 'Ò': 'O', 'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ö': 'O',
+  'Ù': 'U', 'Ú': 'U', 'Û': 'U', 'Ü': 'U', 'Ý': 'Y',
+};
+
+/// The letter [label] is filed under: A-Z, accents aside, else '#'.
+String letterOf(String label) {
+  if (label.isEmpty) return '#';
+  final String first = label.substring(0, 1).toUpperCase();
+  final String plain = _plainLetters[first] ?? first;
+  return RegExp('[A-Z]').hasMatch(plain) ? plain : '#';
+}
+
+/// [apps] in letter sections, '#' first, each sorted by name ignoring case.
+List<LetterSection> letterSections(List<LauncherApp> apps) {
+  final Map<String, List<LauncherApp>> byLetter = <String, List<LauncherApp>>{};
+  for (final LauncherApp app in apps) {
+    byLetter.putIfAbsent(letterOf(app.label), () => <LauncherApp>[]).add(app);
+  }
+  final List<String> letters = byLetter.keys.toList()..sort();
+  return <LetterSection>[
+    for (final String letter in letters)
+      LetterSection(letter: letter, apps: byLetter[letter]!..sort((LauncherApp a, LauncherApp b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()))),
+  ];
+}
+
+/// The phone's usual four, by role, each a list of the packages that fill it
+/// on different phones (Google, AOSP, Tecno/Infinix/itel, Samsung, Xiaomi).
+const List<List<String>> dockRoles = <List<String>>[
+  <String>['com.google.android.dialer', 'com.android.dialer', 'com.transsion.dialer', 'com.samsung.android.dialer', 'com.android.contacts'],
+  <String>['com.google.android.apps.messaging', 'com.android.mms', 'com.transsion.message', 'com.samsung.android.messaging', 'com.android.messaging'],
+  <String>['com.transsion.camera', 'com.google.android.GoogleCamera', 'com.android.camera', 'com.sec.android.app.camera', 'com.android.camera2'],
+  <String>['com.android.chrome', 'org.mozilla.firefox', 'com.opera.browser', 'com.sec.android.app.sbrowser', 'com.transsion.phoenix'],
+];
+
+/// The dock before the person has chosen one: the first installed package
+/// for each role in [dockRoles].
+List<String> defaultDock(List<String> installed) {
+  final Set<String> have = installed.toSet();
+  return <String>[
+    for (final List<String> role in dockRoles)
+      if (role.where(have.contains).firstOrNull case final String package) package,
+  ];
+}
+
+/// What the person arranged: apps on the home screen, apps in the dock.
+class const LauncherLayout({final List<String> home = const <String>[], final List<String> dock = const <String>[], final bool dockChosen = true}) {
+  String encode() => jsonEncode(<String, Object?>{'home': home, 'dock': dock});
+
+  /// Reads [encode]'s shape, and the first version's plain list of pins.
+  static LauncherLayout decode(String text) {
+    try {
+      final Object? decoded = jsonDecode(text);
+      if (decoded is List) return LauncherLayout(home: <String>[for (final Object? item in decoded) '$item'], dockChosen: false);
+      if (decoded is Map) {
+        List<String> listOf(Object? value) => value is List ? <String>[for (final Object? item in value) '$item'] : <String>[];
+        return LauncherLayout(home: listOf(decoded['home']), dock: listOf(decoded['dock']), dockChosen: decoded['dock'] is List);
+      }
+    } on FormatException {
+      // An unreadable file is an empty layout.
+    }
+    return const LauncherLayout(dockChosen: false);
+  }
+}
+
+/// The screens Dev Launcher lays out for.
+enum ScreenKind { watch, phone, tablet, tv }
+
+/// Which kind of screen [width] x [height] logical pixels is. A watch is
+/// small and nearly square; a TV is wide and big; a Chromebook is a large
+/// tablet.
+ScreenKind screenKindFor({required double width, required double height}) {
+  final double shortest = width < height ? width : height;
+  final double longest = width < height ? height : width;
+  if (shortest < 300 || (longest / shortest < 1.25 && longest < 500)) return ScreenKind.watch;
+  if (shortest >= 1000 && width > height && width >= 1600) return ScreenKind.tv;
+  if (shortest >= 600) return ScreenKind.tablet;
+  return ScreenKind.phone;
+}
+
+/// The inset on each side that keeps a square of content inside the circle
+/// of a round watch face [diameter] wide.
+double roundSafeInset(double diameter) => (diameter - diameter / 1.4142135623730951) / 2;
+
+/// How many app tiles fit across.
+int gridColumns(ScreenKind kind, double width) => switch (kind) {
+      ScreenKind.watch => 2,
+      ScreenKind.phone => 4,
+      ScreenKind.tablet => (width / 130).floor().clamp(5, 8),
+      ScreenKind.tv => 8,
+    };
