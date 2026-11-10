@@ -20,7 +20,9 @@ Widget _launcherRoot(BuildContext context, DVAppParts parts) => MaterialApp.rout
 ThemeData launcherTheme() {
   final ThemeData base = dartvelDefaultTheme(.dark);
   return base.copyWith(
-    scaffoldBackgroundColor: LauncherColors.page,
+    // Transparent, so the phone's wallpaper shows behind every screen.
+    scaffoldBackgroundColor: const Color(0x00000000),
+    canvasColor: const Color(0x00000000),
     colorScheme: base.colorScheme.copyWith(primary: LauncherColors.accent, surface: LauncherColors.surface, onSurface: LauncherColors.text),
     textSelectionTheme: const TextSelectionThemeData(cursorColor: LauncherColors.accent, selectionColor: Color(0x553FB950)),
     textTheme: base.textTheme.apply(fontFamily: launcherFont, bodyColor: LauncherColors.text, displayColor: LauncherColors.text),
