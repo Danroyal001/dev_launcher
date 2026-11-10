@@ -3,10 +3,10 @@
 The same block as `AGENTS.md`, in the file Claude Code reads. Both are generated from one source, so neither can be wrong on its own.
 
 <!-- dartvel:begin agents -->
-<!-- Written by `dartvel dev`, matched to Dartvel 0.13.29.
+<!-- Written by `dartvel dev`, matched to Dartvel 0.13.34.
      Edits inside this block are replaced; text outside it is kept. -->
 
-## Dartvel 0.13.29
+## Dartvel 0.13.34
 
 # Dartvel working rules
 
@@ -163,7 +163,7 @@ An application reads the signal and waits; it does not drive the machinery.
 
 The documentation for this exact version ships with it, at:
 
-    /home/sigmadev/.pub-cache/hosted/pub.dev/dartvel_cli-0.13.29/docs
+    ~/.pub-cache/hosted/pub.dev/dartvel_cli-0.13.34/docs
 
 Read it before adding anything: it describes the API as this version has it, which is not always what the newest website says.
 <!-- dartvel:end agents -->
