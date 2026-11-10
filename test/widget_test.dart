@@ -1,30 +1,18 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility that Flutter provides. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:dev_launcher/main.dart';
+import 'package:dev_launcher/dartvel_client/dartvel_client.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Dartvel application starts', (WidgetTester tester) async {
+    // Generated pages are deferred, and loadLibrary() resolves on the real
+    // event loop rather than the fake one a widget test runs on. Pumping
+    // inside runAsync lets that finish; a plain pumpWidget leaves its timer
+    // pending and fails the test rather than the app.
+    await tester.runAsync(() async {
+      await tester.pumpWidget(createDartvelApp());
+      await tester.pump();
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.byType(WidgetsApp), findsOneWidget);
   });
 }
