@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
+import 'app_drawer.dart';
 import 'app_tiles.dart';
 import 'theme.dart';
 
@@ -37,6 +38,17 @@ void followStore(BuildContext context, DVSignal<LauncherSnapshot> snapshot) {
   snapshot.value = LauncherStore.instance.current;
 }
 
+/// Back closes the drawer while it is open. A plain observer of the system's
+/// back request: the launcher itself is never closed by Back (the generated
+/// activity keeps it), so this only ever closes what is on top.
+class DrawerBack(
+  /// True when it handled Back.
+  final bool Function() onBack,
+) with WidgetsBindingObserver {
+  @override
+  Future<bool> didPopRoute() async => onBack();
+}
+
 @DVFunctionalWidget()
 Widget _launcherHome(BuildContext context) {
   final LauncherStore store = LauncherStore.instance;
@@ -46,6 +58,28 @@ Widget _launcherHome(BuildContext context) {
   final DVSignal<String> selected = context.signal('');
   final DVSignal<DateTime> now = context.signal(DateTime.now());
   final DVSignal<bool> started = context.signal(false);
+  // The drawer's top edge: the screen height when closed, 0 when open, and
+  // anywhere between while a finger drags it.
+  final DVSignal<double?> drawerTop = context.signal<double?>(null);
+  final DVSignal<bool> dragging = context.signal(false);
+  final double screenHeight = MediaQuery.sizeOf(context).height;
+  double topNow() => drawerTop.read() ?? screenHeight;
+  void openDrawer() {
+    dragging.value = false;
+    drawerTop.value = 0;
+  }
+
+  void closeDrawer() {
+    dragging.value = false;
+    drawerTop.value = screenHeight;
+  }
+
+  void dragDrawer(double deltaY) {
+    dragging.value = true;
+    drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight);
+  }
+
+  void releaseDrawer(double velocity) => drawerSettlesOpen(top: topNow(), height: screenHeight, velocity: velocity) ? openDrawer() : closeDrawer();
 
   if (!started.read()) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -53,6 +87,17 @@ Widget _launcherHome(BuildContext context) {
       started.value = true;
       followStore(context, snapshot);
       store.start();
+      late final DrawerBack back;
+      back = DrawerBack(() {
+        if (!context.mounted) {
+          WidgetsBinding.instance.removeObserver(back);
+          return false;
+        }
+        if (topNow() >= screenHeight) return false;
+        closeDrawer();
+        return true;
+      });
+      WidgetsBinding.instance.addObserver(back);
       // Back from Settings (after choosing the home app) or from any app:
       // ask again whether Dev Launcher is the home app.
       late final StreamSubscription<DVAppLifecycle> lifecycle;
@@ -62,6 +107,8 @@ Widget _launcherHome(BuildContext context) {
           return;
         }
         if (state == DVAppLifecycle.ready) store.refreshDefault();
+        // An app opened from the drawer: home shows the home screen again.
+        if (state == DVAppLifecycle.backgrounded) closeDrawer();
       });
       // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {
@@ -85,7 +132,6 @@ Widget _launcherHome(BuildContext context) {
   final double clockSize = switch (kind) { ScreenKind.watch => 34, ScreenKind.phone => 64, ScreenKind.tablet => 80, ScreenKind.tv => 96 };
   final DateTime time = now.value;
 
-  void openDrawer() => DV.Navigation.push(DVRoutes.apps);
   Future<void> open(String package) async {
     final String problem = await openApp(package);
     status.value = problem;
@@ -187,12 +233,29 @@ Widget _launcherHome(BuildContext context) {
     for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
   ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
+  // Drag up from the dock (or the handle above it) and the drawer follows the
+  // finger, one to one; let go and it settles open or closed.
+  final DVModifier dragUp = DVModifier().onGesture(DVGesture(
+    onUpdate: (ScaleUpdateDetails details) => dragDrawer(details.focalPointDelta.dy),
+    onEnd: (ScaleEndDetails details) => releaseDrawer(details.velocity.pixelsPerSecond.dy),
+  ));
+  final double top = drawerTop.value ?? size.height;
+  final Widget drawer = DVBox(
+    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer),
+    DVModifier().marginOnly(top: top).height(size.height).merge(dragging.value ? DVModifier() : DVModifier().animate(const Duration(milliseconds: 220))),
+  );
+  final Widget dragHandle = DVBox(
+    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
+    DVModifier().centered().paddingSymmetric(vertical: 8).tooltip('Drag up, or tap, for all apps').onTap(openDrawer).merge(dragUp),
+  );
+
   // A browser has no wallpaper to show: the preview sits on the dark page.
   return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 64))),
-      if (!watch) DVBox(dockRow, DVModifier().paddingOnly(left: side, right: side, bottom: 16).centered()),
+      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 85))),
+      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16).centered().merge(dragUp)),
     ], spacing: 0),
+    drawer,
     if (sheetApp != null)
       DVBox(
         AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
@@ -201,5 +264,5 @@ Widget _launcherHome(BuildContext context) {
         }),
         DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
       ),
-  ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).onSwipeUp(openDrawer)), DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0x00000000)));
+  ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).clipContent()), DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0x00000000)));
 }

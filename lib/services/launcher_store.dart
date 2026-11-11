@@ -36,6 +36,7 @@ class const LauncherSnapshot({
   final bool loading = true,
   final bool isDefault = true,
   final String problem = '',
+  final List<String> systemDock = const <String>[],
 }) {
   DVInstalledApp? app(String package) {
     for (final DVInstalledApp each in apps) {
@@ -46,18 +47,25 @@ class const LauncherSnapshot({
 
   List<DVInstalledApp> appsFor(List<String> packages) => <DVInstalledApp>[for (final String package in packages) if (app(package) case final DVInstalledApp found) found];
 
-  /// The dock: what the person chose, else the phone's usual four.
-  List<String> get dock => layout.dockChosen ? layout.dock : defaultDock(<String>[for (final DVInstalledApp each in apps) each.packageName]);
+  /// The dock: what the person chose; else the phone's own default phone,
+  /// messages, camera and browser apps ([systemDock], from Android); else, where
+  /// the phone cannot say, the usual packages for those roles.
+  List<String> get dock {
+    if (layout.dockChosen) return layout.dock;
+    if (systemDock.isNotEmpty) return systemDock;
+    return defaultDock(<String>[for (final DVInstalledApp each in apps) each.packageName]);
+  }
 
   List<LauncherApp> get launcherApps => <LauncherApp>[for (final DVInstalledApp each in apps) LauncherApp(packageName: each.packageName, label: each.label)];
 
-  LauncherSnapshot copyWith({List<DVInstalledApp>? apps, LauncherLayout? layout, bool? preview, bool? loading, bool? isDefault, String? problem}) => LauncherSnapshot(
+  LauncherSnapshot copyWith({List<DVInstalledApp>? apps, LauncherLayout? layout, bool? preview, bool? loading, bool? isDefault, String? problem, List<String>? systemDock}) => LauncherSnapshot(
         apps: apps ?? this.apps,
         layout: layout ?? this.layout,
         preview: preview ?? this.preview,
         loading: loading ?? this.loading,
         isDefault: isDefault ?? this.isDefault,
         problem: problem ?? this.problem,
+        systemDock: systemDock ?? this.systemDock,
       );
 }
 
@@ -103,7 +111,22 @@ class LauncherStore {
     }
     _emit(_current.copyWith(apps: apps, layout: layout, loading: false));
     unawaited(refreshDefault());
+    unawaited(_readSystemDock());
     await _fillIcons();
+  }
+
+  /// The phone's own default apps for the dock's four roles, in dock order.
+  Future<void> _readSystemDock() async {
+    final List<String> dock = <String>[];
+    for (final DVAppRole role in const <DVAppRole>[DVAppRole.phone, DVAppRole.messages, DVAppRole.camera, DVAppRole.browser]) {
+      try {
+        final String? package = await DV.Platform.apps.defaultFor(role);
+        if (package != null && !dock.contains(package) && _current.app(package) != null) dock.add(package);
+      } on Object {
+        // A phone that cannot say keeps the usual packages for that role.
+      }
+    }
+    if (dock.isNotEmpty) _emit(_current.copyWith(systemDock: dock));
   }
 
   /// Whether Dev Launcher is the phone's home app now.
@@ -196,6 +219,7 @@ class LauncherStore {
   }
 
   Future<String> pinDock(String package, {required bool pinned}) {
+    // The first change to the dock starts from what it shows now.
     final List<String> dock = _current.dock;
     final List<String> next = pinned ? <String>[...dock.where((String p) => p != package), package].take(5).toList() : dock.where((String p) => p != package).toList();
     return saveLayout(LauncherLayout(home: _current.layout.home, dock: next, dockChosen: true));

@@ -13,7 +13,11 @@ import 'launcher_home.dart' show followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
-Widget _appDrawer(BuildContext context) {
+Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd}) {
+  // Embedded in the home screen, the drawer is closed by the home screen;
+  // on its own (/apps) it goes back.
+  void close() => onClose != null ? onClose() : DV.Navigation.back();
+  final bool embedded = onClose != null;
   final LauncherStore store = LauncherStore.instance;
   final DVSignal<LauncherSnapshot> snapshot = context.signal(store.current);
   final DVSignal<String> search = context.signal('');
@@ -36,7 +40,7 @@ Widget _appDrawer(BuildContext context) {
           lifecycle.cancel();
           return;
         }
-        if (state == DVAppLifecycle.backgrounded) {
+        if (state == DVAppLifecycle.backgrounded && !embedded) {
           lifecycle.cancel();
           DV.Navigation.back();
         }
@@ -62,9 +66,19 @@ Widget _appDrawer(BuildContext context) {
   final List<LetterSection> visible = letter.value.isEmpty || query.isNotEmpty ? sections : sections.where((LetterSection s) => s.letter == letter.value).toList();
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
 
+  // The handle at the top: drag it down and the drawer follows the finger.
+  final Widget handle = DVBox(
+    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
+    DVModifier().centered().paddingSymmetric(vertical: 12).tooltip('Drag down to close all apps').onTap(close).onGesture(DVGesture(
+          onUpdate: (ScaleUpdateDetails details) => onDrag?.call(details.focalPointDelta.dy),
+          onEnd: (ScaleEndDetails details) => onDragEnd?.call(details.velocity.pixelsPerSecond.dy),
+        )),
+  );
+
   final Widget list = DVBox.list(<Widget>[
+    if (embedded) handle,
     DVBox.row(<Widget>[
-      DVText('‹ home').modifier(mono(size: 14, color: LauncherColors.text).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip('Back to the home screen').onTap(() => DV.Navigation.back())),
+      DVText('‹ home').modifier(mono(size: 14, color: LauncherColors.text).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip('Back to the home screen').onTap(close)),
       DVText(watch ? 'apps' : 'all apps · ${current.apps.length}').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).semanticHeading(1)),
     ], spacing: 8, crossAlign: DVCrossAlign.start),
     if (!watch)
@@ -111,5 +125,5 @@ Widget _appDrawer(BuildContext context) {
         }),
         DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
       ),
-  ], modifier: DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0xB30B0F14)).minHeight(size.height).onSwipeDown(() => DV.Navigation.back()));
+  ], modifier: DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0xB30B0F14)).minHeight(size.height).merge(embedded ? DVModifier() : DVModifier().onSwipeDown(close)));
 }
