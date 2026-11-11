@@ -38,17 +38,6 @@ void followStore(BuildContext context, DVSignal<LauncherSnapshot> snapshot) {
   snapshot.value = LauncherStore.instance.current;
 }
 
-/// Back closes the drawer while it is open. A plain observer of the system's
-/// back request: the launcher itself is never closed by Back (the generated
-/// activity keeps it), so this only ever closes what is on top.
-class DrawerBack(
-  /// True when it handled Back.
-  final bool Function() onBack,
-) with WidgetsBindingObserver {
-  @override
-  Future<bool> didPopRoute() async => onBack();
-}
-
 @DVFunctionalWidget()
 Widget _launcherHome(BuildContext context) {
   final LauncherStore store = LauncherStore.instance;
@@ -62,16 +51,25 @@ Widget _launcherHome(BuildContext context) {
   // anywhere between while a finger drags it.
   final DVSignal<double?> drawerTop = context.signal<double?>(null);
   final DVSignal<bool> dragging = context.signal(false);
+  // While the drawer is open, Back closes it (DV.Navigation.onBack); this is
+  // the call that stops that when it closes.
+  final DVSignal<VoidCallback?> stopBack = context.signal<VoidCallback?>(null);
   final double screenHeight = MediaQuery.sizeOf(context).height;
   double topNow() => drawerTop.read() ?? screenHeight;
-  void openDrawer() {
-    dragging.value = false;
-    drawerTop.value = 0;
-  }
-
   void closeDrawer() {
     dragging.value = false;
     drawerTop.value = screenHeight;
+    stopBack.read()?.call();
+    stopBack.value = null;
+  }
+
+  void openDrawer() {
+    dragging.value = false;
+    drawerTop.value = 0;
+    stopBack.value ??= DV.Navigation.onBack(() {
+      closeDrawer();
+      return true;
+    });
   }
 
   void dragDrawer(double deltaY) {
@@ -79,7 +77,12 @@ Widget _launcherHome(BuildContext context) {
     drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight);
   }
 
-  void releaseDrawer(double velocity) => drawerSettlesOpen(top: topNow(), height: screenHeight, velocity: velocity) ? openDrawer() : closeDrawer();
+  // A tap inside a drag area can end a gesture that never moved; only a real
+  // drag settles the drawer, or a tap on the apps button would close it again.
+  void releaseDrawer(double velocity) {
+    if (!dragging.read()) return;
+    drawerSettlesOpen(top: topNow(), height: screenHeight, velocity: velocity) ? openDrawer() : closeDrawer();
+  }
 
   if (!started.read()) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -87,17 +90,6 @@ Widget _launcherHome(BuildContext context) {
       started.value = true;
       followStore(context, snapshot);
       store.start();
-      late final DrawerBack back;
-      back = DrawerBack(() {
-        if (!context.mounted) {
-          WidgetsBinding.instance.removeObserver(back);
-          return false;
-        }
-        if (topNow() >= screenHeight) return false;
-        closeDrawer();
-        return true;
-      });
-      WidgetsBinding.instance.addObserver(back);
       // Back from Settings (after choosing the home app) or from any app:
       // ask again whether Dev Launcher is the home app.
       late final StreamSubscription<DVAppLifecycle> lifecycle;
@@ -225,7 +217,7 @@ Widget _launcherHome(BuildContext context) {
       DVText('Long-press any app to put it here or in the dock.').modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
     if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
     if (watch) DVBox(appsButton, DVModifier().centered()),
-  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28, bottom: 24)).scrollable();
+  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24));
 
   final Widget dockRow = DVBox.row(<Widget>[
     for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
@@ -242,7 +234,9 @@ Widget _launcherHome(BuildContext context) {
   final double top = drawerTop.value ?? size.height;
   final Widget drawer = DVBox(
     AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer),
-    DVModifier().marginOnly(top: top).height(size.height).merge(dragging.value ? DVModifier() : DVModifier().animate(const Duration(milliseconds: 220))),
+    // Always animated, with no duration while a finger drags: switching the
+    // animation off rebuilt the drawer and cancelled the drag after one move.
+    DVModifier().marginOnly(top: top).height(size.height).animate(dragging.value ? Duration.zero : const Duration(milliseconds: 220)),
   );
   final Widget dragHandle = DVBox(
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
@@ -252,8 +246,8 @@ Widget _launcherHome(BuildContext context) {
   // A browser has no wallpaper to show: the preview sits on the dark page.
   return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 85))),
-      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16).centered().merge(dragUp)),
+      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 85 + MediaQuery.paddingOf(context).bottom)).clipContent()),
+      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16 + MediaQuery.paddingOf(context).bottom).centered().merge(dragUp)),
     ], spacing: 0),
     drawer,
     if (sheetApp != null)
