@@ -1,7 +1,6 @@
 // On an Android 12 emulator the drawer did not open from the apps button and
 // Back left it open. This drives the real app (real router, real home): tap
 // the apps button, then send Back the way Android does.
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dev_launcher/dartvel_client/dartvel_client.dart';
@@ -11,15 +10,6 @@ void main() {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.75;
     addTearDown(tester.view.reset);
-    // The closed drawer sits below the screen, pushed there by a margin that
-    // leaves it no height; Flutter reports that as an overflow in debug. It
-    // is never painted. Dartvel has no offset modifier yet to move it whole.
-    final FlutterExceptionHandler? report = FlutterError.onError;
-    FlutterError.onError = (FlutterErrorDetails details) {
-      if (details.exceptionAsString().contains('RenderFlex overflowed')) return;
-      report?.call(details);
-    };
-    addTearDown(() => FlutterError.onError = report);
     await tester.runAsync(() async {
       await tester.pumpWidget(createDartvelApp());
       for (int frame = 0; frame < 20; frame++) {

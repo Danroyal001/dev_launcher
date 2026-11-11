@@ -78,8 +78,6 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
     DVModifier().centered().paddingSymmetric(vertical: 10).tooltip('Drag down, or tap, to close all apps').onTap(close),
   );
-  final double headerHeight = safeTop + (embedded ? 25 : 0) + (watch ? 52 : 120);
-
   final Widget header = DVBox.list(<Widget>[
     if (embedded) handle,
     DVBox.row(<Widget>[
@@ -97,7 +95,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
               },
             ),
       ),
-  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).height(headerHeight).merge(embedded ? dragDown : DVModifier()));
+  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
   final Widget list = DVBox.list(<Widget>[
     if (query.isEmpty && sections.length > 1 && !watch)
@@ -124,8 +122,9 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   ], spacing: 16, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom)).scrollable();
 
   return DVBox.stack(<Widget>[
-    DVBox(list, DVModifier().height(size.height - headerHeight).marginOnly(top: headerHeight)),
-    header,
+    // The header as tall as its contents need, whatever the font size, and
+    // the list the rest of the screen.
+    DVBox.list(<Widget>[header, DVBox(list, DVModifier().fill())], spacing: 0, modifier: DVModifier().height(size.height)),
     if (sheetApp != null)
       DVBox(
         AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {

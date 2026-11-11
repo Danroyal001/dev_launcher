@@ -236,7 +236,7 @@ Widget _launcherHome(BuildContext context) {
     AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer),
     // Always animated, with no duration while a finger drags: switching the
     // animation off rebuilt the drawer and cancelled the drag after one move.
-    DVModifier().marginOnly(top: top).height(size.height).animate(dragging.value ? Duration.zero : const Duration(milliseconds: 220)),
+    DVModifier().offset(0, top).height(size.height).animate(dragging.value ? Duration.zero : const Duration(milliseconds: 220)),
   );
   final Widget dragHandle = DVBox(
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
