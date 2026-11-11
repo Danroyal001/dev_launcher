@@ -203,3 +203,16 @@ int gridColumns(ScreenKind kind, double width) => switch (kind) {
       ScreenKind.tablet => (width / 130).floor().clamp(5, 8),
       ScreenKind.tv => 8,
     };
+
+/// Where the drawer's top edge is after the finger moved [deltaY] from
+/// [top], between 0 (open) and [height] (closed). One to one with the finger.
+double drawerTopAfterDrag(double top, double deltaY, {required double height}) => (top + deltaY).clamp(0, height).toDouble();
+
+/// Whether a drawer let go at [top], moving at [velocity] pixels a second
+/// (negative is up), settles open: a quick flick decides, else being past
+/// halfway does.
+bool drawerSettlesOpen({required double top, required double height, required double velocity}) {
+  if (velocity <= -400) return true;
+  if (velocity >= 400) return false;
+  return top < height / 2;
+}

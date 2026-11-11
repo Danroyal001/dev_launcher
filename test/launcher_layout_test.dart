@@ -93,4 +93,19 @@ void main() {
       expect(gridColumns(ScreenKind.tv, 1920), 8, reason: 'a TV is read from across a room: fewer, larger tiles');
     });
   });
+
+  group('the drawer follows the finger', () {
+    test('it moves exactly as far as the finger, and never past open or closed', () {
+      expect(drawerTopAfterDrag(800, -120, height: 800), 680);
+      expect(drawerTopAfterDrag(100, -300, height: 800), 0);
+      expect(drawerTopAfterDrag(700, 300, height: 800), 800);
+    });
+
+    test('let go, it settles by how fast it was moving, else by where it is', () {
+      expect(drawerSettlesOpen(top: 700, height: 800, velocity: -900), isTrue, reason: 'a quick flick up opens it from anywhere');
+      expect(drawerSettlesOpen(top: 100, height: 800, velocity: 900), isFalse, reason: 'a quick flick down closes it');
+      expect(drawerSettlesOpen(top: 300, height: 800, velocity: 0), isTrue, reason: 'past halfway, it opens');
+      expect(drawerSettlesOpen(top: 500, height: 800, velocity: 0), isFalse, reason: 'short of halfway, it falls back');
+    });
+  });
 }
