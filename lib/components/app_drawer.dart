@@ -66,16 +66,21 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final List<LetterSection> visible = letter.value.isEmpty || query.isNotEmpty ? sections : sections.where((LetterSection s) => s.letter == letter.value).toList();
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
 
-  // The handle at the top: drag it down and the drawer follows the finger.
+  final double safeTop = MediaQuery.paddingOf(context).top;
+  // Drag the header (handle, title, search) and the drawer follows the
+  // finger; let go and it settles. It sits below the status bar, where a
+  // finger can reach it.
+  final DVModifier dragDown = DVModifier().onGesture(DVGesture(
+    onUpdate: (ScaleUpdateDetails details) => onDrag?.call(details.focalPointDelta.dy),
+    onEnd: (ScaleEndDetails details) => onDragEnd?.call(details.velocity.pixelsPerSecond.dy),
+  ));
   final Widget handle = DVBox(
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
-    DVModifier().centered().paddingSymmetric(vertical: 12).tooltip('Drag down to close all apps').onTap(close).onGesture(DVGesture(
-          onUpdate: (ScaleUpdateDetails details) => onDrag?.call(details.focalPointDelta.dy),
-          onEnd: (ScaleEndDetails details) => onDragEnd?.call(details.velocity.pixelsPerSecond.dy),
-        )),
+    DVModifier().centered().paddingSymmetric(vertical: 10).tooltip('Drag down, or tap, to close all apps').onTap(close),
   );
+  final double headerHeight = safeTop + (embedded ? 25 : 0) + (watch ? 52 : 120);
 
-  final Widget list = DVBox.list(<Widget>[
+  final Widget header = DVBox.list(<Widget>[
     if (embedded) handle,
     DVBox.row(<Widget>[
       DVText('‹ home').modifier(mono(size: 14, color: LauncherColors.text).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip('Back to the home screen').onTap(close)),
@@ -92,6 +97,9 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
               },
             ),
       ),
+  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).height(headerHeight).merge(embedded ? dragDown : DVModifier()));
+
+  final Widget list = DVBox.list(<Widget>[
     if (query.isEmpty && sections.length > 1 && !watch)
       DVBox.wrapLine(<Widget>[
         for (final LetterSection section in sections)
@@ -113,10 +121,11 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           for (final DVInstalledApp app in installedFor(current, section.apps)) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
         ], columns: columns, spacing: 4, responsive: false),
       ], spacing: 8),
-  ], spacing: 16, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 24, bottom: 32)).scrollable();
+  ], spacing: 16, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom)).scrollable();
 
   return DVBox.stack(<Widget>[
-    DVBox(list, DVModifier().height(size.height)),
+    DVBox(list, DVModifier().height(size.height - headerHeight).marginOnly(top: headerHeight)),
+    header,
     if (sheetApp != null)
       DVBox(
         AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
@@ -125,5 +134,5 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
         }),
         DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
       ),
-  ], modifier: DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0xB30B0F14)).minHeight(size.height).merge(embedded ? DVModifier() : DVModifier().onSwipeDown(close)));
+  ], modifier: DVModifier().backgroundColor(LauncherColors.page).minHeight(size.height).merge(embedded ? DVModifier() : DVModifier().onSwipeDown(close)));
 }
