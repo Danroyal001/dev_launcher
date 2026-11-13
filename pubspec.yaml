@@ -1,7 +1,7 @@
 name: dev_launcher
 description: A new Dartvel project
 publish_to: "none"
-version: 0.1.6+6
+version: 0.1.7+7
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
