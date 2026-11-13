@@ -11,6 +11,16 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Dev tools row.** Terminals, Git hosts, editors, API clients, SSH and cloud consoles you have
   installed are picked out automatically (`lib/services/launcher_logic.dart`, `devToolPackages`).
 - **Every app, A to Z**, with its real icon. Long-press any app for open, pin, app info and uninstall.
+- **Recent apps.** The apps you opened last lead the drawer, newest first, in one row above the A-Z
+  list. Kept on the phone across restarts; an uninstalled app leaves the row.
+- **Installs and uninstalls while it is open.** Coming back to the home screen asks Android for the
+  apps again: new apps appear (only their icons are drawn), removed ones leave the list, the recents
+  and the icon cache. Tapping an app that is already gone says so and drops its tile.
+- **No blank start.** The app names the last start saw show at once, then Android's own list, then
+  the icons saved on the phone, then the missing icons a few at a time.
+- **Small phones and large text.** The home screen scrolls when it is taller than the room above the
+  dock, the dock's icons shrink to fit across, and titles end in an ellipsis instead of overflowing
+  (tested at 320 px wide and up to 2x font size).
 - A dark editor palette and JetBrains Mono. Pins are kept on the phone.
 
 ## Use it as your home screen

@@ -65,6 +65,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final List<LetterSection> sections = letterSections(shown);
   final List<LetterSection> visible = letter.value.isEmpty || query.isNotEmpty ? sections : sections.where((LetterSection s) => s.letter == letter.value).toList();
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
+  final List<DVInstalledApp> recent = current.recentApps.take(columns).toList();
 
   final double safeTop = MediaQuery.paddingOf(context).top;
   // Drag the header (handle, title, search) and the drawer follows the
@@ -82,7 +83,9 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     if (embedded) handle,
     DVBox.row(<Widget>[
       DVText('‹ home').modifier(mono(size: 14, color: LauncherColors.text).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip('Back to the home screen').onTap(close)),
-      DVText(watch ? 'apps' : 'all apps · ${current.apps.length}').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).semanticHeading(1)),
+      // The title takes what the back link leaves, and ends in … rather than
+      // pushing past the edge on a small phone with large text.
+      DVBox(DVText(watch ? 'apps' : 'all apps · ${current.apps.length}').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).maxLines(1).overflow(TextOverflow.ellipsis).semanticHeading(1)), DVModifier().fill()),
     ], spacing: 8, crossAlign: DVCrossAlign.start),
     if (!watch)
       DVText(search.value).modifier(
@@ -98,6 +101,16 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
   final Widget list = DVBox.list(<Widget>[
+    // The apps opened last, newest first: one row, above the A-Z list, as
+    // phone launchers put their suggestions. Hidden while searching or
+    // looking at one letter, where it would push the answer down.
+    if (query.isEmpty && letter.value.isEmpty && recent.isNotEmpty)
+      DVBox.list(<Widget>[
+        DVText('recent').modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
+        DVBox.grid(<Widget>[
+          for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
+        ], columns: columns, spacing: 4, responsive: false),
+      ], spacing: 8),
     if (query.isEmpty && sections.length > 1 && !watch)
       DVBox.wrapLine(<Widget>[
         for (final LetterSection section in sections)

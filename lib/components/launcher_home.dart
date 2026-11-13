@@ -98,7 +98,11 @@ Widget _launcherHome(BuildContext context) {
           lifecycle.cancel();
           return;
         }
-        if (state == DVAppLifecycle.ready) store.refreshDefault();
+        // Apps installed or uninstalled meanwhile show up, or go, too.
+        if (state == DVAppLifecycle.ready) {
+          store.refreshDefault();
+          store.refreshApps();
+        }
         // An app opened from the drawer: home shows the home screen again.
         if (state == DVAppLifecycle.backgrounded) closeDrawer();
       });
@@ -170,9 +174,13 @@ Widget _launcherHome(BuildContext context) {
   final List<DVInstalledApp> dock = current.appsFor(current.dock);
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
 
+  // Every dock slot (its apps and the apps button) fits across the dock on
+  // the narrowest phone: icons shrink rather than push past the edge.
+  final double dockWidth = (kind == ScreenKind.phone ? size.width - side * 2 : (size.width - side * 2).clamp(0, 640).toDouble()) - 8;
+  final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 1) - 12).clamp(32, iconSize).toDouble();
   final Widget appsButton = DVBox(
     DVText('⋮⋮').modifier(mono(size: watch ? 18 : 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
-    DVModifier().width(iconSize).height(iconSize).backgroundColor(const Color(0x33FFFFFF)).rounded(iconSize * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
   );
 
   final Widget content = DVBox.list(<Widget>[
@@ -217,12 +225,14 @@ Widget _launcherHome(BuildContext context) {
       DVText('Long-press any app to put it here or in the dock.').modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
     if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
     if (watch) DVBox(appsButton, DVModifier().centered()),
-  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24));
+  // Scrolls when it is taller than the room above the dock (a small phone,
+  // large text, many apps on home): nothing is cut off out of reach.
+  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24)).scrollable();
 
   final Widget dockRow = DVBox.row(<Widget>[
-    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
+    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
     appsButton,
-    for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: iconSize, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
+    for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
   ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
   // Drag up from the dock (or the handle above it) and the drawer follows the
@@ -236,7 +246,7 @@ Widget _launcherHome(BuildContext context) {
     AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer),
     // Always animated, with no duration while a finger drags: switching the
     // animation off rebuilt the drawer and cancelled the drag after one move.
-    DVModifier().offset(0, top).height(size.height).animate(dragging.value ? Duration.zero : const Duration(milliseconds: 220)),
+    DVModifier().offset(0, top).height(size.height).animate(dragging.value ? .zero : const Duration(milliseconds: 220)),
   );
   final Widget dragHandle = DVBox(
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
@@ -246,7 +256,7 @@ Widget _launcherHome(BuildContext context) {
   // A browser has no wallpaper to show: the preview sits on the dark page.
   return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVBox(content, DVModifier().height(size.height - (watch ? 0 : iconSize + 85 + MediaQuery.paddingOf(context).bottom)).clipContent()),
+      DVBox(content, DVModifier().height(size.height - (watch ? 0 : dockIcon + 85 + MediaQuery.paddingOf(context).bottom)).clipContent()),
       if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16 + MediaQuery.paddingOf(context).bottom).centered().merge(dragUp)),
     ], spacing: 0),
     drawer,
