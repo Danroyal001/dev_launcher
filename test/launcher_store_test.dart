@@ -127,4 +127,34 @@ void main() {
     await second.start();
     expect(second.current.apps.length, 3);
   });
+
+  // Owner, 13 Nov (Tecno, Android 12): back on the home screen from an app,
+  // the launcher froze for seconds and then "isn't responding". 0.1.7 asked
+  // Android for every app on each return. Returning now asks at most once a
+  // while, after the home screen is back on screen, never in the moment of
+  // returning.
+  test('returning to the home screen does not re-list the apps at once, and not twice in a row', () async {
+    final LauncherStore store = LauncherStore();
+    await store.start();
+    final int before = phone.listCalls;
+
+    store.refreshAppsSoon(delay: const Duration(milliseconds: 50), freshFor: Duration.zero);
+    expect(phone.listCalls, before, reason: 'nothing asked in the moment of returning');
+    store.refreshAppsSoon(delay: const Duration(milliseconds: 50), freshFor: Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(phone.listCalls, before + 1, reason: 'two returns close together are one look');
+
+    store.refreshAppsSoon(delay: const Duration(milliseconds: 50));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(phone.listCalls, before + 1, reason: 'a look a moment ago is fresh enough');
+  });
+
+  test('an app installed while away still shows up on a later return', () async {
+    final LauncherStore store = LauncherStore();
+    await store.start();
+    phone.installed['com.github.android'] = 'GitHub';
+    store.refreshAppsSoon(delay: const Duration(milliseconds: 10), freshFor: Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(store.current.app('com.github.android'), isNotNull);
+  });
 }

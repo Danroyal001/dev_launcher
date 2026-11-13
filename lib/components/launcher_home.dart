@@ -109,7 +109,7 @@ Widget _launcherHome(BuildContext context) {
         // Apps installed or uninstalled meanwhile show up, or go, too.
         if (state == DVAppLifecycle.ready) {
           store.refreshDefault();
-          store.refreshApps();
+          store.refreshAppsSoon();
         }
         // An app opened from the drawer: home shows the home screen again.
         if (state == DVAppLifecycle.backgrounded) closeDrawer();
