@@ -63,18 +63,26 @@ Widget _launcherHome(BuildContext context) {
     stopBack.value = null;
   }
 
-  void openDrawer() {
-    dragging.value = false;
-    drawerTop.value = 0;
+  // Back closes the drawer whenever any of it is showing: settled open, or
+  // dragged part way by a finger whose release never arrives (the system's
+  // gesture area at the bottom of the screen can swallow it).
+  void claimBack() {
     stopBack.value ??= DV.Navigation.onBack(() {
       closeDrawer();
       return true;
     });
   }
 
+  void openDrawer() {
+    dragging.value = false;
+    drawerTop.value = 0;
+    claimBack();
+  }
+
   void dragDrawer(double deltaY) {
     dragging.value = true;
     drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight);
+    if (topNow() < screenHeight) claimBack();
   }
 
   // A tap inside a drag area can end a gesture that never moved; only a real
@@ -101,10 +109,34 @@ Widget _launcherHome(BuildContext context) {
         // Apps installed or uninstalled meanwhile show up, or go, too.
         if (state == DVAppLifecycle.ready) {
           store.refreshDefault();
-          store.refreshApps();
+          store.refreshAppsSoon();
         }
         // An app opened from the drawer: home shows the home screen again.
         if (state == DVAppLifecycle.backgrounded) closeDrawer();
+      });
+      // Home pressed while the launcher is in front (or bringing it back):
+      // the home screen, as it is after a fresh start, with nothing open.
+      late final StreamSubscription<void> home;
+      home = DV.Platform.apps.homePresses.listen((_) {
+        if (!context.mounted) {
+          home.cancel();
+          return;
+        }
+        closeDrawer();
+        selected.value = '';
+        status.value = '';
+      });
+      // Recents pressed and the phone showed nothing (HiOS hosts Recents in
+      // its own launcher): the drawer, whose first row is the apps opened
+      // last. A second press closes it, as Recents does.
+      late final StreamSubscription<void> recents;
+      recents = DV.Platform.apps.recentsPresses.listen((_) {
+        if (!context.mounted) {
+          recents.cancel();
+          return;
+        }
+        selected.value = '';
+        topNow() < screenHeight / 2 ? closeDrawer() : openDrawer();
       });
       // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {

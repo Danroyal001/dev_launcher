@@ -110,6 +110,8 @@ class LauncherStore {
   bool _started = false;
   bool _listed = false;
   Future<void>? _refreshing;
+  DateTime _listedAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _soon;
 
   LauncherSnapshot get current => _current;
   Stream<LauncherSnapshot> get changes => _changes.stream;
@@ -149,6 +151,7 @@ class LauncherStore {
       return;
     }
     _listed = true;
+    _listedAt = DateTime.now();
     _emit(_current.copyWith(apps: apps, loading: false));
     await _forgetUninstalled();
     unawaited(_writeText(appsFile, encodeAppNames(apps)));
@@ -166,10 +169,24 @@ class LauncherStore {
     return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
   }
 
+  /// [refreshApps] for the moment the launcher is back in front: after
+  /// [delay], once the home screen is drawn and answering, and only when the
+  /// last look is older than [freshFor]. Asking Android for every app takes
+  /// seconds on a slow phone; doing it in the moment of returning, on every
+  /// return, froze the home screen (owner's Tecno, 0.1.7).
+  void refreshAppsSoon({Duration delay = const Duration(seconds: 2), Duration freshFor = const Duration(seconds: 30)}) {
+    _soon?.cancel();
+    _soon = Timer(delay, () {
+      if (DateTime.now().difference(_listedAt) < freshFor) return;
+      unawaited(refreshApps());
+    });
+  }
+
   Future<void> _refresh() async {
     final List<DVInstalledApp> fresh;
     try {
       fresh = await DV.Platform.apps.list(icons: false);
+      _listedAt = DateTime.now();
     } on Object {
       return;
     }

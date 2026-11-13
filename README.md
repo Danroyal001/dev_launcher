@@ -18,6 +18,16 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
   and the icon cache. Tapping an app that is already gone says so and drops its tile.
 - **No blank start.** The app names the last start saw show at once, then Android's own list, then
   the icons saved on the phone, then the missing icons a few at a time.
+- **Back, Home and Recents behave like a launcher's.** Back closes the drawer whenever any of it is
+  showing, even one dragged open whose finger release the system swallowed. Home, pressed while the
+  launcher is in front, closes the drawer and any menu (`DV.Platform.apps.homePresses`). An app
+  opened from the drawer closes it behind the app, so coming back lands on the home screen. On
+  phones whose own launcher hosts Recents (likely HiOS), Recents can show nothing while another app is the
+  home app; Dev Launcher answers that press with its own recent apps (the drawer's first row), and
+  a second press closes it (`DV.Platform.apps.recentsPresses`). Where the system shows its Recents
+  screen, Dev Launcher stays out of the way.
+- **No freeze on returning home.** Listing apps and drawing icons run off the main thread
+  (Dartvel 0.13.51), and the list is re-read 2 s after the home screen is back, at most every 30 s.
 - **Small phones and large text.** The home screen scrolls when it is taller than the room above the
   dock, the dock's icons shrink to fit across, and titles end in an ellipsis instead of overflowing
   (tested at 320 px wide and up to 2x font size).

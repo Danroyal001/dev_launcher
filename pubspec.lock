@@ -5,10 +5,10 @@ packages:
     dependency: transitive
     description:
       name: archive
-      sha256: de5ac590b8155e4e676088d714bd41ea620449a6adc0f7950c5073874b287ddb
+      sha256: "2fda90592c0afd219c5e285618a98da835cd10df38372666093d25dfe457a2d0"
       url: "https://pub.dev"
     source: hosted
-    version: "4.6.0"
+    version: "4.7.1"
   args:
     dependency: transitive
     description:
@@ -85,34 +85,34 @@ packages:
     dependency: "direct dev"
     description:
       name: dartvel_cli
-      sha256: f63478430d41fe95ad012829bdd685b50b195490dbf5482791e9509844cd6f44
+      sha256: "7f2f1222fab225dbe7394fe97fefac344ae2008cf1d336dd409c66d8f3d17e06"
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.50"
+    version: "0.13.51"
   dartvel_core:
     dependency: "direct main"
     description:
       name: dartvel_core
-      sha256: "68993beec6a29e8d300f176e57426ecc2410f68a57766eb3b35382a2350f5c66"
+      sha256: f1b67be996956dba57303a6cfca6194db9f8c0d2a135db6eafdf5862cb677d28
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.50"
+    version: "0.13.51"
   dartvel_flutter:
     dependency: "direct main"
     description:
       name: dartvel_flutter
-      sha256: fe4302ed71949b8e2e7941c4d132eaff03977b24fa8b3c4bef2ba8bf9e6cb7cd
+      sha256: "2cd52efe04eb94f6222295b9498d8f5b26c5c09f1c380027c8e83c7cdf4c5f74"
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.50"
+    version: "0.13.51"
   dartvel_shelf:
     dependency: "direct main"
     description:
       name: dartvel_shelf
-      sha256: "6415915fe229c5b96e81a047c314940a5a23b24cba34a1576c186e72f75232f5"
+      sha256: "047371d28de7498433ef6abad53cc8b3d3110e3b60d1730c710575c987180874"
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.50"
+    version: "0.13.51"
   dbus:
     dependency: transitive
     description:
@@ -340,10 +340,10 @@ packages:
     dependency: transitive
     description:
       name: mix
-      sha256: ab034fdec325b4f626c4c5b4fa81f2083dfce1b124c9b8dcc9047a48b1069f33
+      sha256: "2a3b4398dfb6164ebc9dad3745503113c796ae1a68292f812076daa6432c1eff"
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.1"
+    version: "2.4.0"
   mix_annotations:
     dependency: transitive
     description:
