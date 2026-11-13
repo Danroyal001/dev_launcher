@@ -106,6 +106,18 @@ Widget _launcherHome(BuildContext context) {
         // An app opened from the drawer: home shows the home screen again.
         if (state == DVAppLifecycle.backgrounded) closeDrawer();
       });
+      // Home pressed while the launcher is in front (or bringing it back):
+      // the home screen, as it is after a fresh start, with nothing open.
+      late final StreamSubscription<void> home;
+      home = DV.Platform.apps.homePresses.listen((_) {
+        if (!context.mounted) {
+          home.cancel();
+          return;
+        }
+        closeDrawer();
+        selected.value = '';
+        status.value = '';
+      });
       // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {
         if (!context.mounted) {
