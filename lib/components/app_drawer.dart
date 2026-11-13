@@ -57,7 +57,15 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final int columns = gridColumns(kind, size.width - side * 2);
   final double iconSize = switch (kind) { ScreenKind.watch => 40, ScreenKind.phone => 52, ScreenKind.tablet => 60, ScreenKind.tv => 72 };
 
-  Future<void> open(String package) async => status.value = await openApp(package);
+  // An app opened from here: the drawer closes behind it, so coming back
+  // lands on the home screen. Android does not always stop the home app
+  // while another is in front, so closing when the launcher is backgrounded
+  // missed it (Appetize, Android 12).
+  Future<void> open(String package) async {
+    final String problem = await openApp(package);
+    status.value = problem;
+    if (problem.isEmpty && embedded) close();
+  }
   void more(String package) => selected.value = package;
 
   final String query = search.value.trim();
