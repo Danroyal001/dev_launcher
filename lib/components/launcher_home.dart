@@ -118,6 +118,18 @@ Widget _launcherHome(BuildContext context) {
         selected.value = '';
         status.value = '';
       });
+      // Recents pressed and the phone showed nothing (HiOS hosts Recents in
+      // its own launcher): the drawer, whose first row is the apps opened
+      // last. A second press closes it, as Recents does.
+      late final StreamSubscription<void> recents;
+      recents = DV.Platform.apps.recentsPresses.listen((_) {
+        if (!context.mounted) {
+          recents.cancel();
+          return;
+        }
+        selected.value = '';
+        topNow() < screenHeight / 2 ? closeDrawer() : openDrawer();
+      });
       // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {
         if (!context.mounted) {
