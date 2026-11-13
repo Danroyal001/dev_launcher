@@ -216,3 +216,44 @@ bool drawerSettlesOpen({required double top, required double height, required do
   if (velocity >= 400) return false;
   return top < height / 2;
 }
+
+/// How many recent apps are kept: a row on every screen, with room to spare
+/// for an app that is uninstalled.
+const int recentAppsKept = 12;
+
+/// The recent apps after [package] was opened: it first, once, then the rest
+/// newest first, the oldest dropped past [recentAppsKept].
+List<String> recordLaunch(List<String> recents, String package) {
+  if (package.isEmpty) return recents;
+  return <String>[package, ...recents.where((String each) => each != package)].take(recentAppsKept).toList();
+}
+
+/// [packages] without the ones no longer [installed], in the same order.
+List<String> keepInstalled(List<String> packages, Set<String> installed) => <String>[for (final String package in packages) if (installed.contains(package)) package];
+
+/// The recent apps as their file holds them.
+String encodeRecents(List<String> recents) => jsonEncode(recents);
+
+/// [encodeRecents]'s list back; anything else (no file, a broken one) is no
+/// recent apps rather than a crash.
+List<String> decodeRecents(String text) {
+  try {
+    final Object? decoded = jsonDecode(text);
+    if (decoded is! List) return const <String>[];
+    return <String>[for (final Object? item in decoded) if (item is String && item.isNotEmpty) item].take(recentAppsKept).toList();
+  } on FormatException {
+    return const <String>[];
+  }
+}
+
+/// What changed between two lists of installed packages.
+class const AppListChange({required final List<String> added, required final List<String> removed}) {
+  bool get isEmpty => added.isEmpty && removed.isEmpty;
+}
+
+/// The apps installed and uninstalled between [before] and [after].
+AppListChange appListChange({required List<String> before, required List<String> after}) {
+  final Set<String> had = before.toSet();
+  final Set<String> has = after.toSet();
+  return AppListChange(added: <String>[for (final String package in after) if (!had.contains(package)) package], removed: <String>[for (final String package in before) if (!has.contains(package)) package]);
+}

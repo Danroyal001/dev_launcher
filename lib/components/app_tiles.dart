@@ -7,16 +7,8 @@ import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
 import 'theme.dart';
 
-/// Opens [package], or says why it could not.
-Future<String> openApp(String package) async {
-  if (LauncherStore.instance.current.preview) return 'Preview: on your phone this opens the app.';
-  try {
-    await DV.Platform.apps.open(package);
-    return '';
-  } on Object catch (error) {
-    return '$error'.replaceFirst('Bad state: ', '');
-  }
-}
+/// Opens [package] and adds it to the recent apps, or says why it could not.
+Future<String> openApp(String package) => LauncherStore.instance.open(package);
 
 /// An app's icon, or its first letter on a tile when it has none (yet).
 @DVFunctionalWidget()
