@@ -63,18 +63,26 @@ Widget _launcherHome(BuildContext context) {
     stopBack.value = null;
   }
 
-  void openDrawer() {
-    dragging.value = false;
-    drawerTop.value = 0;
+  // Back closes the drawer whenever any of it is showing: settled open, or
+  // dragged part way by a finger whose release never arrives (the system's
+  // gesture area at the bottom of the screen can swallow it).
+  void claimBack() {
     stopBack.value ??= DV.Navigation.onBack(() {
       closeDrawer();
       return true;
     });
   }
 
+  void openDrawer() {
+    dragging.value = false;
+    drawerTop.value = 0;
+    claimBack();
+  }
+
   void dragDrawer(double deltaY) {
     dragging.value = true;
     drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight);
+    if (topNow() < screenHeight) claimBack();
   }
 
   // A tap inside a drag area can end a gesture that never moved; only a real
