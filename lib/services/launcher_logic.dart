@@ -257,3 +257,28 @@ AppListChange appListChange({required List<String> before, required List<String>
   final Set<String> has = after.toSet();
   return AppListChange(added: <String>[for (final String package in after) if (!had.contains(package)) package], removed: <String>[for (final String package in before) if (!has.contains(package)) package]);
 }
+
+/// The recent apps without [package], the order of the rest kept.
+List<String> forgetRecent(List<String> recents, String package) => <String>[for (final String each in recents) if (each != package) each];
+
+/// What each signal on the Recents diagnostics screen means, in plain words.
+String describeSignal(String name, String detail) => switch (name) {
+      'home' => 'Home pressed',
+      'started' => 'Home screen started ($detail)',
+      'back' => 'Back pressed',
+      'backHandled' => 'Dev Launcher answered Back (closed $detail)',
+      'recents' => 'Recents pressed (the phone said "recentapps")',
+      'recentsReplaced' => 'Recents service showed our Recents (saw the $detail)',
+      'closeSystemDialogs' => 'Phone closed its panels (reason: ${detail.isEmpty ? 'none given' : detail})',
+      'pause' => 'Dev Launcher paused',
+      'stop' => 'Dev Launcher went out of sight',
+      'userLeaveHint' => 'Leaving Dev Launcher by a key or button',
+      'focus' => detail == 'gained' ? 'Dev Launcher is in front again' : 'Something covered Dev Launcher',
+      'window' => 'A window opened: $detail',
+      'click' => 'A system button was pressed: $detail',
+      _ => detail.isEmpty ? name : '$name: $detail',
+    };
+
+/// Seconds between two signal stamps (milliseconds), as the diagnostics
+/// screen shows them: +0.4 s.
+String sinceLabel(int at, int first) => '+${((at - first) / 1000).toStringAsFixed(1)} s';

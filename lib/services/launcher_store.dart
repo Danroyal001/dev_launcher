@@ -243,6 +243,17 @@ class LauncherStore {
     return '';
   }
 
+  /// Takes [package] out of the recent apps (it stays installed).
+  Future<void> forgetRecentApp(String package) => _saveRecents(forgetRecent(_current.recents, package));
+
+  /// Empties the recent apps.
+  Future<void> clearRecents() => _saveRecents(const <String>[]);
+
+  Future<void> _saveRecents(List<String> recents) async {
+    _emit(_current.copyWith(recents: recents));
+    if (!_current.preview) await _writeText(recentsFile, encodeRecents(recents));
+  }
+
   /// The phone's own default apps for the dock's four roles, in dock order.
   Future<void> _readSystemDock() async {
     final List<String> dock = <String>[];

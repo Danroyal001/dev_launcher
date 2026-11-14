@@ -11,7 +11,10 @@ import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
 import 'app_drawer.dart';
+import '../services/signal_log.dart';
 import 'app_tiles.dart';
+import 'recents_screen.dart';
+import 'recents_settings.dart';
 import 'theme.dart';
 
 const Set<String> commandWords = <String>{'info', 'pin', 'unpin', 'uninstall'};
@@ -47,31 +50,62 @@ Widget _launcherHome(BuildContext context) {
   final DVSignal<String> selected = context.signal('');
   final DVSignal<DateTime> now = context.signal(DateTime.now());
   final DVSignal<bool> started = context.signal(false);
-  // The drawer's top edge: the screen height when closed, 0 when open, and
-  // anywhere between while a finger drags it.
+  // The drawer's top edge: null when closed, 0 when open, and anywhere
+  // between while a finger drags it.
   final DVSignal<double?> drawerTop = context.signal<double?>(null);
   final DVSignal<bool> dragging = context.signal(false);
   // While the drawer is open, Back closes it (DV.Navigation.onBack); this is
   // the call that stops that when it closes.
   final DVSignal<VoidCallback?> stopBack = context.signal<VoidCallback?>(null);
-  final double screenHeight = MediaQuery.sizeOf(context).height;
-  double topNow() => drawerTop.read() ?? screenHeight;
-  void closeDrawer() {
-    dragging.value = false;
-    drawerTop.value = screenHeight;
+  // The height now, asked each time: these calls outlive the build they were
+  // made in (Home, Back and leaving for an app run the ones from the first
+  // frame, which Android can lay out before it knows the screen: height 0).
+  // Remembering that height put the "closed" drawer at 0, fully open, and
+  // let go of Back.
+  double screenHeight() => MediaQuery.sizeOf(context).height;
+  double topNow() => drawerTop.read() ?? screenHeight();
+  // What is over the home screen besides the drawer: nothing, Dev Launcher's
+  // Recents ('recents'), or the Recents button settings ('settings').
+  final DVSignal<String> overlay = context.signal('');
+  final DVSignal<DateTime?> recentsClosedByHome = context.signal<DateTime?>(null);
+  // Back stops being Dev Launcher's once nothing is open.
+  void releaseBackWhenIdle() {
+    if (overlay.read().isNotEmpty || topNow() < screenHeight()) return;
     stopBack.read()?.call();
     stopBack.value = null;
   }
 
-  // Back closes the drawer whenever any of it is showing: settled open, or
-  // dragged part way by a finger whose release never arrives (the system's
+  void closeDrawer() {
+    dragging.value = false;
+    drawerTop.value = null;
+    releaseBackWhenIdle();
+  }
+
+  late final void Function(String name) show;
+  // Back closes what is on top: the settings back to Recents, Recents back
+  // to home, then the drawer whenever any of it is showing (settled open, or
+  // dragged part way by a finger whose release never arrives: the system's
   // gesture area at the bottom of the screen can swallow it).
   void claimBack() {
     stopBack.value ??= DV.Navigation.onBack(() {
-      closeDrawer();
+      if (overlay.read() == 'settings') {
+        SignalLog.instance.note('backHandled', 'Recents settings');
+        show('recents');
+      } else if (overlay.read().isNotEmpty) {
+        SignalLog.instance.note('backHandled', 'Recents');
+        show('');
+      } else {
+        SignalLog.instance.note('backHandled', 'the app drawer');
+        closeDrawer();
+      }
       return true;
     });
   }
+
+  show = (String name) {
+    overlay.value = name;
+    name.isEmpty ? releaseBackWhenIdle() : claimBack();
+  };
 
   void openDrawer() {
     dragging.value = false;
@@ -81,15 +115,15 @@ Widget _launcherHome(BuildContext context) {
 
   void dragDrawer(double deltaY) {
     dragging.value = true;
-    drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight);
-    if (topNow() < screenHeight) claimBack();
+    drawerTop.value = drawerTopAfterDrag(topNow(), deltaY, height: screenHeight());
+    if (topNow() < screenHeight()) claimBack();
   }
 
   // A tap inside a drag area can end a gesture that never moved; only a real
   // drag settles the drawer, or a tap on the apps button would close it again.
   void releaseDrawer(double velocity) {
     if (!dragging.read()) return;
-    drawerSettlesOpen(top: topNow(), height: screenHeight, velocity: velocity) ? openDrawer() : closeDrawer();
+    drawerSettlesOpen(top: topNow(), height: screenHeight(), velocity: velocity) ? openDrawer() : closeDrawer();
   }
 
   if (!started.read()) {
@@ -98,6 +132,8 @@ Widget _launcherHome(BuildContext context) {
       started.value = true;
       followStore(context, snapshot);
       store.start();
+      SignalLog.instance.start();
+      SignalLog.instance.note('started', 'screen height ${screenHeight().round()}');
       // Back from Settings (after choosing the home app) or from any app:
       // ask again whether Dev Launcher is the home app.
       late final StreamSubscription<DVAppLifecycle> lifecycle;
@@ -122,13 +158,18 @@ Widget _launcherHome(BuildContext context) {
           home.cancel();
           return;
         }
+        // The Recents service presses Home before it asks for Recents: a
+        // Recents that this Home closed was open, and the press closes it.
+        recentsClosedByHome.value = overlay.read() == 'recents' ? DateTime.now() : null;
         closeDrawer();
+        show('');
         selected.value = '';
         status.value = '';
       });
-      // Recents pressed and the phone showed nothing (HiOS hosts Recents in
-      // its own launcher): the drawer, whose first row is the apps opened
-      // last. A second press closes it, as Recents does.
+      // The phone's Recents button, wherever Dev Launcher hears it: the
+      // phone said so and showed nothing of its own (HiOS hosts Recents in
+      // its own launcher), or the Recents service saw it. Dev Launcher's
+      // Recents opens; a second press closes it, as Recents does.
       late final StreamSubscription<void> recents;
       recents = DV.Platform.apps.recentsPresses.listen((_) {
         if (!context.mounted) {
@@ -136,7 +177,14 @@ Widget _launcherHome(BuildContext context) {
           return;
         }
         selected.value = '';
-        topNow() < screenHeight / 2 ? closeDrawer() : openDrawer();
+        final DateTime? closed = recentsClosedByHome.read();
+        recentsClosedByHome.value = null;
+        if (overlay.read() == 'recents' || (closed != null && DateTime.now().difference(closed) < const Duration(seconds: 3))) {
+          show('');
+        } else {
+          closeDrawer();
+          show('recents');
+        }
       });
       // The clock: a minute is the finest it shows.
       Timer.periodic(const Duration(seconds: 15), (Timer timer) {
@@ -209,10 +257,15 @@ Widget _launcherHome(BuildContext context) {
   // Every dock slot (its apps and the apps button) fits across the dock on
   // the narrowest phone: icons shrink rather than push past the edge.
   final double dockWidth = (kind == ScreenKind.phone ? size.width - side * 2 : (size.width - side * 2).clamp(0, 640).toDouble()) - 8;
-  final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 1) - 12).clamp(32, iconSize).toDouble();
+  final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 2) - 12).clamp(32, iconSize).toDouble();
   final Widget appsButton = DVBox(
     DVText('⋮⋮').modifier(mono(size: watch ? 18 : 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
     DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
+  );
+
+  final Widget recentsButton = DVBox(
+    DVText('□').modifier(mono(size: 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
   );
 
   final Widget content = DVBox.list(<Widget>[
@@ -265,6 +318,7 @@ Widget _launcherHome(BuildContext context) {
     for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
     appsButton,
     for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
+    recentsButton,
   ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
   // Drag up from the dock (or the handle above it) and the drawer follows the
@@ -288,10 +342,12 @@ Widget _launcherHome(BuildContext context) {
   // A browser has no wallpaper to show: the preview sits on the dark page.
   return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVBox(content, DVModifier().height(size.height - (watch ? 0 : dockIcon + 85 + MediaQuery.paddingOf(context).bottom)).clipContent()),
+      DVBox(content, DVModifier().height(size.height - (watch ? 0 : dockIcon + 85 + MediaQuery.paddingOf(context).bottom)).clipContent().onSwipeLeft(() => show('recents'))),
       if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16 + MediaQuery.paddingOf(context).bottom).centered().merge(dragUp)),
     ], spacing: 0),
     drawer,
+    if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () => show('settings')),
+    if (overlay.value == 'settings') RecentsSettings(onClose: () => show('recents')),
     if (sheetApp != null)
       DVBox(
         AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
