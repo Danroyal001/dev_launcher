@@ -34,6 +34,9 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Recents diagnostics.** The same settings screen lists, live, everything the phone told Dev
   Launcher (Home, Back, Recents, pauses, focus changes, windows the service saw) and when. Press
   Recents on your phone, come back, and it shows what that phone really sends.
+- **No text selection.** A home screen is not a document: a long press on a label is "more about
+  this app", never "select this text" (`@DVPage(selectable: false)` on every page). The command and
+  search fields still take typing, and every control keeps its name and tooltip.
 - **No freeze on returning home.** Listing apps and drawing icons run off the main thread
   (Dartvel 0.13.51), and the list is re-read 2 s after the home screen is back, at most every 30 s.
 - **Small phones and large text.** The home screen scrolls when it is taller than the room above the
