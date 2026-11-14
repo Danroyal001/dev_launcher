@@ -87,11 +87,12 @@ void main() {
     expect(find.text('recent apps'), findsOneWidget);
 
     // With the Recents service, each press of the phone's Recents button
-    // arrives as Home (it closes the system's Recents) and then the request.
-    // The second press closes Dev Launcher's Recents, as Recents does.
+    // arrives as one request (the Home the service presses to close the
+    // system's Recents is not passed on as a Home press). The second press
+    // closes Dev Launcher's Recents, as Recents does.
     Future<void> servicePress(int at) async {
       await tester.runAsync(() async {
-        await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('home:$at'), (ByteData? _) {});
+        await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('homeByService:$at'), (ByteData? _) {});
         await Future<void>.delayed(const Duration(milliseconds: 100));
         await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('recentsReplaced:${at + 600}:button'), (ByteData? _) {});
         await Future<void>.delayed(const Duration(milliseconds: 100));

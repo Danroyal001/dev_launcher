@@ -264,6 +264,7 @@ List<String> forgetRecent(List<String> recents, String package) => <String>[for 
 /// What each signal on the Recents diagnostics screen means, in plain words.
 String describeSignal(String name, String detail) => switch (name) {
       'home' => 'Home pressed',
+      'homeByService' => 'Recents service pressed Home to close the phone\'s Recents',
       'started' => 'Home screen started ($detail)',
       'back' => 'Back pressed',
       'backHandled' => 'Dev Launcher answered Back (closed $detail)',
