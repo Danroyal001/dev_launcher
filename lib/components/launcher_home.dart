@@ -67,6 +67,7 @@ Widget _launcherHome(BuildContext context) {
   // What is over the home screen besides the drawer: nothing, Dev Launcher's
   // Recents ('recents'), or the Recents button settings ('settings').
   final DVSignal<String> overlay = context.signal('');
+  final DVSignal<DateTime?> recentsClosedByHome = context.signal<DateTime?>(null);
   // Back stops being Dev Launcher's once nothing is open.
   void releaseBackWhenIdle() {
     if (overlay.read().isNotEmpty || topNow() < screenHeight()) return;
@@ -157,6 +158,9 @@ Widget _launcherHome(BuildContext context) {
           home.cancel();
           return;
         }
+        // The Recents service presses Home before it asks for Recents: a
+        // Recents that this Home closed was open, and the press closes it.
+        recentsClosedByHome.value = overlay.read() == 'recents' ? DateTime.now() : null;
         closeDrawer();
         show('');
         selected.value = '';
@@ -173,7 +177,9 @@ Widget _launcherHome(BuildContext context) {
           return;
         }
         selected.value = '';
-        if (overlay.read() == 'recents') {
+        final DateTime? closed = recentsClosedByHome.read();
+        recentsClosedByHome.value = null;
+        if (overlay.read() == 'recents' || (closed != null && DateTime.now().difference(closed) < const Duration(seconds: 3))) {
           show('');
         } else {
           closeDrawer();

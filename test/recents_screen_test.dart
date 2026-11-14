@@ -76,6 +76,8 @@ void main() {
   testWidgets('the system\'s Recents press, when the phone reports it, opens our Recents', (WidgetTester tester) async {
     DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => 0);
     addTearDown(() => DVNativeBridge.unregister('apps.recentsPressedAt'));
+    DVNativeBridge.register('apps.homePressedAt', (Object? _) => 0);
+    addTearDown(() => DVNativeBridge.unregister('apps.homePressedAt'));
     await startApp(tester);
     await tester.runAsync(() async {
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('recents:500'), (ByteData? _) {});
@@ -83,5 +85,23 @@ void main() {
     });
     await settle(tester);
     expect(find.text('recent apps'), findsOneWidget);
+
+    // With the Recents service, each press of the phone's Recents button
+    // arrives as Home (it closes the system's Recents) and then the request.
+    // The second press closes Dev Launcher's Recents, as Recents does.
+    Future<void> servicePress(int at) async {
+      await tester.runAsync(() async {
+        await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('home:$at'), (ByteData? _) {});
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage('recentsReplaced:${at + 600}:button'), (ByteData? _) {});
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await settle(tester);
+    }
+
+    await servicePress(2000);
+    expect(find.text('recent apps'), findsNothing, reason: 'the second press closed it');
+    await servicePress(4000);
+    expect(find.text('recent apps'), findsOneWidget, reason: 'and the third opens it again');
   });
 }
