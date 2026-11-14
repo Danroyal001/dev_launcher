@@ -1,7 +1,7 @@
 name: dev_launcher
 description: A new Dartvel project
 publish_to: "none"
-version: 0.1.8+8
+version: 0.1.9+9
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
@@ -55,6 +55,9 @@ dartvel:
   android:
     # Offered as the phone's home app, and allowed to see the installed apps.
     launcher: true
+    # Opt-in for the person: once turned on under Accessibility, the phone's
+    # Recents button shows Dev Launcher's own Recents.
+    recentsService: true
   platforms:
     - web
     - android

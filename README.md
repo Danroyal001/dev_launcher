@@ -11,21 +11,29 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Dev tools row.** Terminals, Git hosts, editors, API clients, SSH and cloud consoles you have
   installed are picked out automatically (`lib/services/launcher_logic.dart`, `devToolPackages`).
 - **Every app, A to Z**, with its real icon. Long-press any app for open, pin, app info and uninstall.
-- **Recent apps.** The apps you opened last lead the drawer, newest first, in one row above the A-Z
+- **Recent apps in the drawer.** The apps you opened last lead the drawer, newest first, in one row above the A-Z
   list. Kept on the phone across restarts; an uninstalled app leaves the row.
 - **Installs and uninstalls while it is open.** Coming back to the home screen asks Android for the
   apps again: new apps appear (only their icons are drawn), removed ones leave the list, the recents
   and the icon cache. Tapping an app that is already gone says so and drops its tile.
 - **No blank start.** The app names the last start saw show at once, then Android's own list, then
   the icons saved on the phone, then the missing icons a few at a time.
-- **Back, Home and Recents behave like a launcher's.** Back closes the drawer whenever any of it is
-  showing, even one dragged open whose finger release the system swallowed. Home, pressed while the
-  launcher is in front, closes the drawer and any menu (`DV.Platform.apps.homePresses`). An app
-  opened from the drawer closes it behind the app, so coming back lands on the home screen. On
-  phones whose own launcher hosts Recents (likely HiOS), Recents can show nothing while another app is the
-  home app; Dev Launcher answers that press with its own recent apps (the drawer's first row), and
-  a second press closes it (`DV.Platform.apps.recentsPresses`). Where the system shows its Recents
-  screen, Dev Launcher stays out of the way.
+- **Back and Home behave like a launcher's.** Back closes what is on top: the Recents settings, then
+  Recents, then the drawer whenever any of it is showing. Home, pressed while the launcher is in
+  front, closes all of them (`DV.Platform.apps.homePresses`). An app opened from the drawer closes
+  it behind the app, so coming back lands on the home screen.
+- **Its own Recents.** The apps you opened from Dev Launcher, newest first, as cards: tap one to open
+  it, ✕ takes it off the list, "clear all" empties it. It opens from the dock's Recents button (□)
+  and a swipe left on the home screen; a swipe right, Back or Home closes it. Android gives the
+  phone's Recents button to the phone's own Recents, never to a home app you install, so:
+  - where the phone tells Dev Launcher about the press and shows nothing itself, Dev Launcher's
+    Recents opens (`DV.Platform.apps.recentsPresses`);
+  - **optional:** turn on "Dev Launcher Recents" under Accessibility (Recents → Recents button
+    settings) and the phone's Recents button opens Dev Launcher's Recents. The service only notices
+    the Recents button and which window opens; it does not read the screen or what you type.
+- **Recents diagnostics.** The same settings screen lists, live, everything the phone told Dev
+  Launcher (Home, Back, Recents, pauses, focus changes, windows the service saw) and when. Press
+  Recents on your phone, come back, and it shows what that phone really sends.
 - **No freeze on returning home.** Listing apps and drawing icons run off the main thread
   (Dartvel 0.13.51), and the list is re-read 2 s after the home screen is back, at most every 30 s.
 - **Small phones and large text.** The home screen scrolls when it is taller than the room above the
