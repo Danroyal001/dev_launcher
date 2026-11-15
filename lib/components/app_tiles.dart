@@ -51,10 +51,15 @@ Widget _appSheet(BuildContext context, {required DVInstalledApp app, required La
   return DVBox.list(<Widget>[
     DVBox.row(<Widget>[
       AppIcon(app: app, size: 40),
-      DVBox.list(<Widget>[
-        DVText(app.label).modifier(mono(size: 16, bold: true).semanticHeading(2)),
-        DVText(app.packageName).modifier(mono(size: 11, color: LauncherColors.muted)),
-      ], spacing: 2),
+      // The name and package take what the icon leaves: a column left to its
+      // own width inside a row has none to give its text.
+      DVBox(
+        DVBox.list(<Widget>[
+          DVText(app.label).modifier(mono(size: 16, bold: true).semanticHeading(2)),
+          DVText(app.packageName).modifier(mono(size: 11, color: LauncherColors.muted)),
+        ], spacing: 2),
+        DVModifier().fill(),
+      ),
     ], spacing: 12, crossAlign: DVCrossAlign.start),
     DVBox.wrapLine(<Widget>[
       action('open', 'Open ${app.label}', () => openApp(app.packageName), color: LauncherColors.accent),
