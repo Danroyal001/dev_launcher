@@ -19,14 +19,29 @@ import 'theme.dart';
 
 const Set<String> commandWords = <String>{'info', 'pin', 'unpin', 'uninstall'};
 
-/// The day and date under the clock: Tue 10 Nov.
-String dayLine(DateTime now) {
-  const List<String> days = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const List<String> months = <String>['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${days[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
+/// The phone's language, as intl names it (en_US, ar, fr_FR).
+String deviceLocale() => WidgetsBinding.instance.platformDispatcher.locale.toString();
+
+/// Three bars drawn as boxes, never a font glyph that a phone's font may lack
+/// (and show as an empty square): three lines across (Tecno, Xiaomi, and the
+/// fallback) or three upright bars (Samsung), as the phone's navigation bar
+/// draws Recents.
+@DVFunctionalWidget()
+Widget _recentsButtonIcon(BuildContext context, {required RecentsGlyph glyph, double size = 22}) {
+  final double thick = (size / 9).clamp(2.0, 4.0);
+  final Widget bar = DVText('').modifier(glyph == RecentsGlyph.lines ? DVModifier().width(size * 0.82).height(thick).backgroundColor(LauncherColors.text).rounded(thick) : DVModifier().width(thick).height(size * 0.72).backgroundColor(LauncherColors.text).rounded(thick));
+  return glyph == RecentsGlyph.lines
+      ? DVBox.list(<Widget>[bar, bar, bar], spacing: size * 0.18, crossAlign: DVCrossAlign.center)
+      : DVBox.row(<Widget>[bar, bar, bar], spacing: size * 0.2, crossAlign: DVCrossAlign.center);
 }
 
-String twoDigits(int value) => value.toString().padLeft(2, '0');
+/// The apps button's grid of nine dots, drawn as boxes for the same reason.
+@DVFunctionalWidget()
+Widget _appsButtonIcon(BuildContext context, {double size = 22}) {
+  final double dot = size / 5;
+  final Widget row = DVBox.row(<Widget>[for (int column = 0; column < 3; column++) DVText('').modifier(DVModifier().width(dot).height(dot).backgroundColor(LauncherColors.text).rounded(dot / 2))], spacing: dot, crossAlign: DVCrossAlign.center);
+  return DVBox.list(<Widget>[row, row, row], spacing: dot, crossAlign: DVCrossAlign.center);
+}
 
 /// Follows the store from the first frame: names at once, icons as they come.
 void followStore(BuildContext context, DVSignal<LauncherSnapshot> snapshot) {
@@ -202,6 +217,11 @@ Widget _launcherHome(BuildContext context) {
   final double iconSize = switch (kind) { ScreenKind.watch => 40, ScreenKind.phone => 52, ScreenKind.tablet => 60, ScreenKind.tv => 72 };
   final double clockSize = switch (kind) { ScreenKind.watch => 34, ScreenKind.phone => 64, ScreenKind.tablet => 80, ScreenKind.tv => 96 };
   final DateTime time = now.value;
+  // The phone's own 12/24-hour setting and language, never a fixed format.
+  final String locale = deviceLocale();
+  final bool use24 = MediaQuery.alwaysUse24HourFormatOf(context) || WidgetsBinding.instance.platformDispatcher.alwaysUse24HourFormat;
+  final String clock = clockText(time, use24: use24, locale: locale);
+  final String date = dayLine(time, locale: locale);
 
   Future<void> open(String package) async {
     final String problem = await openApp(package);
@@ -254,12 +274,16 @@ Widget _launcherHome(BuildContext context) {
   final double dockWidth = (kind == ScreenKind.phone ? size.width - side * 2 : (size.width - side * 2).clamp(0, 640).toDouble()) - 8;
   final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 2) - 12).clamp(32, iconSize).toDouble();
   final Widget appsButton = DVBox(
-    DVText('⋮⋮').modifier(mono(size: watch ? 18 : 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
+    AppsButtonIcon(size: watch ? 18 : 22),
     DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
   );
 
+  // The Recents button as the phone's navigation bar has it: its glyph, and
+  // its side unless the person chose one in Recents button settings.
+  final NavBarStyle navBar = navBarStyleFor(current.apps.map((DVInstalledApp app) => app.packageName));
+  final bool recentsFirst = recentsSideFor(current.layout.recentsSide, navBar) == RecentsSide.left;
   final Widget recentsButton = DVBox(
-    DVText('□').modifier(mono(size: 22, bold: true, color: LauncherColors.text).align(Alignment.center)),
+    RecentsButtonIcon(glyph: navBar.glyph),
     DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
   );
 
@@ -267,8 +291,8 @@ Widget _launcherHome(BuildContext context) {
     if (current.preview)
       DVText('Preview: Dev Launcher is an Android home screen. Here it shows example apps.').modifier(mono(size: 13, color: LauncherColors.muted).backgroundColor(LauncherColors.surface).rounded(10).padding(12)),
     DVBox.list(<Widget>[
-      DVText('${twoDigits(time.hour)}:${twoDigits(time.minute)}').modifier(mono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, ${twoDigits(time.hour)}:${twoDigits(time.minute)}').align(watch ? Alignment.center : Alignment.centerLeft)),
-      DVText(watch ? dayLine(time) : '${dayLine(time)} · ${current.apps.length} apps').modifier(mono(size: watch ? 12 : 15, color: LauncherColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
+      DVText(clock).modifier(mono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, $clock').align(watch ? Alignment.center : Alignment.centerLeft)),
+      DVText(watch ? date : '$date · ${current.apps.length} apps').modifier(mono(size: watch ? 12 : 15, color: LauncherColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
     ], spacing: 6),
     if (!current.isDefault && !current.preview)
       DVBox.list(<Widget>[
@@ -310,10 +334,11 @@ Widget _launcherHome(BuildContext context) {
   ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24)).scrollable();
 
   final Widget dockRow = DVBox.row(<Widget>[
+    if (recentsFirst) recentsButton,
     for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
     appsButton,
     for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
-    recentsButton,
+    if (!recentsFirst) recentsButton,
   ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
   // Drag up from the dock (or the handle above it) and the drawer follows the

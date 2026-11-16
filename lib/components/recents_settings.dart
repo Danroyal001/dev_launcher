@@ -12,7 +12,9 @@ import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
+import '../services/launcher_store.dart';
 import '../services/signal_log.dart';
+import 'launcher_home.dart' show followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
@@ -23,6 +25,7 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
   final DVSignal<bool?> serviceOn = context.signal<bool?>(null);
   final DVSignal<String> status = context.signal('');
   final DVSignal<bool> started = context.signal(false);
+  final DVSignal<LauncherSnapshot> snapshot = context.signal(LauncherStore.instance.current);
 
   Future<void> readService() async {
     try {
@@ -36,6 +39,7 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted || started.read()) return;
       started.value = true;
+      followStore(context, snapshot);
       log.start();
       late final StreamSubscription<List<DVHomeAppSignal>> following;
       following = log.changes.listen((List<DVHomeAppSignal> next) {
@@ -87,6 +91,31 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
     if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
   ], spacing: 10, crossAlign: DVCrossAlign.start);
 
+  // Which side of the dock the Recents button takes. "Follow device" puts it
+  // where this phone's navigation bar has Recents.
+  final RecentsSide chosen = snapshot.value.layout.recentsSide;
+  final RecentsSide deviceSide = navBarStyleFor(snapshot.value.apps.map((DVInstalledApp app) => app.packageName)).recentsSide;
+  Widget sideChoice(RecentsSide side, String name, String hint) {
+    final bool picked = chosen == side;
+    return DVText(picked ? '● $name' : '○ $name').modifier(
+      mono(size: 14, bold: picked, color: picked ? LauncherColors.accent : LauncherColors.text)
+          .paddingSymmetric(horizontal: 8, vertical: 10)
+          .minimumTapTarget(width: 48, height: 48)
+          .semanticLabel('Recents button: $name${picked ? ', selected' : ''}')
+          .tooltip(hint)
+          .onTap(() async => status.value = await LauncherStore.instance.setRecentsSide(side)),
+    );
+  }
+  final Widget sideSetting = DVBox.list(<Widget>[
+    heading('recents button side'),
+    say('Where the Recents button sits in the dock. Follow device matches this phone''s navigation bar (here: ${deviceSide == RecentsSide.left ? 'left' : 'right'}).'),
+    DVBox.wrapLine(<Widget>[
+      sideChoice(RecentsSide.device, 'Follow device', 'Put Recents where this phone''s navigation bar has it'),
+      sideChoice(RecentsSide.left, 'Left', 'Put Recents first in the dock'),
+      sideChoice(RecentsSide.right, 'Right', 'Put Recents last in the dock'),
+    ], spacing: 4),
+  ], spacing: 10, crossAlign: DVCrossAlign.start);
+
   final Widget diagnostics = DVBox.list(<Widget>[
     heading('recents diagnostics'),
     say('Press the phone\'s Recents button (from here, from the home screen, from another app), then come back. Everything the phone told Dev Launcher is listed below, oldest first.'),
@@ -112,6 +141,6 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
     DVBox(DVText('recents settings').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).maxLines(1).overflow(TextOverflow.ellipsis).semanticHeading(1)), DVModifier().fill()),
   ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: MediaQuery.paddingOf(context).top + 4, bottom: 8));
 
-  final Widget body = DVBox.list(<Widget>[service, diagnostics], spacing: 24, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom).maxWidth(760)).scrollable();
+  final Widget body = DVBox.list(<Widget>[sideSetting, service, diagnostics], spacing: 24, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom).maxWidth(760)).scrollable();
   return DVBox.list(<Widget>[header, DVBox(body, DVModifier().fill())], spacing: 0, modifier: DVModifier().backgroundColor(LauncherColors.page).height(size.height));
 }
