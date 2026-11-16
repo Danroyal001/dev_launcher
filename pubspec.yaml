@@ -1,7 +1,7 @@
 name: dev_launcher
 description: A new Dartvel project
 publish_to: "none"
-version: 0.1.9+9
+version: 0.1.10+10
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
@@ -21,6 +21,7 @@ dependencies:
   dartvel_flutter: ^3.47.2
   flutter_web_plugins:
     sdk: flutter
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:

@@ -379,13 +379,22 @@ class LauncherStore {
   Future<String> pinHome(String package, {required bool pinned}) {
     final LauncherLayout layout = _current.layout;
     final List<String> home = pinned ? <String>[...layout.home.where((String p) => p != package), package] : layout.home.where((String p) => p != package).toList();
-    return saveLayout(LauncherLayout(home: home, dock: _current.dock, dockChosen: true));
+    return saveLayout(_current.layout.copyWith(home: home, dock: _current.dock, dockChosen: true));
   }
 
   Future<String> pinDock(String package, {required bool pinned}) {
     // The first change to the dock starts from what it shows now.
     final List<String> dock = _current.dock;
     final List<String> next = pinned ? <String>[...dock.where((String p) => p != package), package].take(5).toList() : dock.where((String p) => p != package).toList();
-    return saveLayout(LauncherLayout(home: _current.layout.home, dock: next, dockChosen: true));
+    return saveLayout(_current.layout.copyWith(dock: next, dockChosen: true));
   }
+
+  /// Puts the dock's Recents button on [side], or back where the phone's
+  /// navigation bar has Recents ([RecentsSide.device]). The dock itself is
+  /// left as it is (still the phone's defaults if never edited).
+  Future<String> setRecentsSide(RecentsSide side) => saveLayout(_current.layout.copyWith(recentsSide: side));
+
+  /// Puts the drawer's letter index on [side], or back on the end of the
+  /// phone's reading direction ([IndexSide.device]).
+  Future<String> setIndexSide(IndexSide side) => saveLayout(_current.layout.copyWith(indexSide: side));
 }

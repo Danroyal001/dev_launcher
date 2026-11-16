@@ -3,6 +3,9 @@
 
 import 'dart:convert';
 
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
+
 /// An app as the launcher sees it.
 class const LauncherApp({required final String packageName, required final String label});
 
@@ -158,8 +161,16 @@ List<String> defaultDock(List<String> installed) {
 }
 
 /// What the person arranged: apps on the home screen, apps in the dock.
-class const LauncherLayout({final List<String> home = const <String>[], final List<String> dock = const <String>[], final bool dockChosen = true}) {
-  String encode() => jsonEncode(<String, Object?>{'home': home, 'dock': dock});
+class const LauncherLayout({final List<String> home = const <String>[], final List<String> dock = const <String>[], final bool dockChosen = true, final RecentsSide recentsSide = RecentsSide.device, final IndexSide indexSide = IndexSide.device}) {
+  String encode() => jsonEncode(<String, Object?>{'home': home, 'dock': dock, if (recentsSide != RecentsSide.device) 'recentsSide': recentsSide.name, if (indexSide != IndexSide.device) 'indexSide': indexSide.name});
+
+  LauncherLayout copyWith({List<String>? home, List<String>? dock, bool? dockChosen, RecentsSide? recentsSide, IndexSide? indexSide}) => LauncherLayout(
+        home: home ?? this.home,
+        dock: dock ?? this.dock,
+        dockChosen: dockChosen ?? this.dockChosen,
+        recentsSide: recentsSide ?? this.recentsSide,
+        indexSide: indexSide ?? this.indexSide,
+      );
 
   /// Reads [encode]'s shape, and the first version's plain list of pins.
   static LauncherLayout decode(String text) {
@@ -168,7 +179,13 @@ class const LauncherLayout({final List<String> home = const <String>[], final Li
       if (decoded is List) return LauncherLayout(home: <String>[for (final Object? item in decoded) '$item'], dockChosen: false);
       if (decoded is Map) {
         List<String> listOf(Object? value) => value is List ? <String>[for (final Object? item in value) '$item'] : <String>[];
-        return LauncherLayout(home: listOf(decoded['home']), dock: listOf(decoded['dock']), dockChosen: decoded['dock'] is List);
+        return LauncherLayout(
+          home: listOf(decoded['home']),
+          dock: listOf(decoded['dock']),
+          dockChosen: decoded['dock'] is List,
+          recentsSide: RecentsSide.values.where((RecentsSide side) => side.name == decoded['recentsSide']).firstOrNull ?? RecentsSide.device,
+          indexSide: IndexSide.values.where((IndexSide side) => side.name == decoded['indexSide']).firstOrNull ?? IndexSide.device,
+        );
       }
     } on FormatException {
       // An unreadable file is an empty layout.
@@ -283,3 +300,88 @@ String describeSignal(String name, String detail) => switch (name) {
 /// Seconds between two signal stamps (milliseconds), as the diagnostics
 /// screen shows them: +0.4 s.
 String sinceLabel(int at, int first) => '+${((at - first) / 1000).toStringAsFixed(1)} s';
+
+/// The letters of the drawer's index, top to bottom: '#' (names that do not
+/// start with a letter), then A to Z.
+const List<String> indexLetters = <String>['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+/// The section a finger on [letter] in the index brings up: [letter]'s own
+/// when it has apps, else the next letter down that has some, else the last
+/// one above it; null when there are no apps at all.
+String? sectionFor(String letter, Map<String, int> appsPerLetter) {
+  bool has(String candidate) => (appsPerLetter[candidate] ?? 0) > 0;
+  final int at = indexLetters.indexOf(letter);
+  if (at < 0) return null;
+  for (int next = at; next < indexLetters.length; next++) {
+    if (has(indexLetters[next])) return indexLetters[next];
+  }
+  for (int previous = at - 1; previous >= 0; previous--) {
+    if (has(indexLetters[previous])) return indexLetters[previous];
+  }
+  return null;
+}
+
+/// Where the dock's Recents button goes: where the phone's navigation bar
+/// puts Recents ([device], the default), or a side the person chose.
+enum RecentsSide { device, left, right }
+
+/// The Recents glyph a phone's navigation bar draws: three lines (Tecno,
+/// Infinix, itel, Xiaomi, and the fallback) or three upright bars (Samsung).
+/// Never Android's square: people read the bar they know.
+enum RecentsGlyph { lines, bars }
+
+/// How the phone's own navigation bar shows Recents.
+class const NavBarStyle({required final RecentsSide recentsSide, required final RecentsGlyph glyph});
+
+/// The navigation bar of the phone whose launchable apps are [packages].
+///
+/// Android has no public call for the navigation bar's order, so the maker is
+/// read from the apps it ships: HiOS/XOS (Tecno, Infinix, itel), One UI
+/// (Samsung) and MIUI/HyperOS (Xiaomi, Redmi, POCO) put Recents on the left by
+/// default; Android itself (Pixel and most others) on the right. A person who
+/// swapped the buttons picks the side in Recents button settings.
+NavBarStyle navBarStyleFor(Iterable<String> packages) {
+  bool any(List<String> prefixes) => packages.any((String package) => prefixes.any(package.startsWith));
+  if (any(const <String>['com.samsung.', 'com.sec.android.'])) return const NavBarStyle(recentsSide: RecentsSide.left, glyph: RecentsGlyph.bars);
+  if (any(const <String>['com.transsion.', 'com.tecno.', 'com.infinix.', 'com.itel.', 'com.miui.', 'com.xiaomi.'])) return const NavBarStyle(recentsSide: RecentsSide.left, glyph: RecentsGlyph.lines);
+  return const NavBarStyle(recentsSide: RecentsSide.right, glyph: RecentsGlyph.lines);
+}
+
+/// The side the Recents button takes: the [setting], or the phone's own
+/// [style] when the setting is "follow device".
+RecentsSide recentsSideFor(RecentsSide setting, NavBarStyle style) => setting == RecentsSide.device ? style.recentsSide : setting;
+
+bool _dateDataReady = false;
+
+/// [locale] as intl knows it: the full tag, else its language, else English.
+String _dateLocale(String locale) {
+  if (!_dateDataReady) {
+    // Bundled with intl, so ready as soon as this returns.
+    initializeDateFormatting();
+    _dateDataReady = true;
+  }
+  return Intl.verifiedLocale(locale, DateFormat.localeExists, onFailure: (_) => 'en')!;
+}
+
+/// The time on the clock: 6:49 PM on a 12-hour phone, 18:49 on a 24-hour one,
+/// with the phone's language for AM/PM and digits.
+String clockText(DateTime time, {required bool use24, required String locale}) {
+  final String known = _dateLocale(locale);
+  return (use24 ? DateFormat.Hm(known) : DateFormat('h:mm a', known)).format(time);
+}
+
+/// The day and date under the clock, in the phone's language and order:
+/// Sun, Nov 15 (US English), Sun 15 Nov (British English), dim. 15 nov.
+String dayLine(DateTime time, {required String locale}) => DateFormat.MMMEd(_dateLocale(locale)).format(time);
+
+/// Which edge of the drawer the letter index takes: the end of the phone's
+/// reading direction ([device], the default), or a side the person chose.
+enum IndexSide { device, left, right }
+
+/// Whether the letter index goes on the left: the chosen [side], else the
+/// end of the reading direction (left on a [rightToLeft] phone).
+bool indexOnLeft(IndexSide side, {required bool rightToLeft}) => switch (side) {
+      IndexSide.left => true,
+      IndexSide.right => false,
+      IndexSide.device => rightToLeft,
+    };

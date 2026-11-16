@@ -108,4 +108,22 @@ void main() {
       expect(drawerSettlesOpen(top: 500, height: 800, velocity: 0), isFalse, reason: 'short of halfway, it falls back');
     });
   });
+
+  group('the letter index', () {
+    test('is # then A to Z', () {
+      expect(indexLetters.first, '#');
+      expect(indexLetters.length, 27);
+      expect(indexLetters.last, 'Z');
+    });
+
+    test('a letter with apps brings up its own section; one without, the next one down that has some, else the last one above', () {
+      const Map<String, int> apps = <String, int>{'C': 3, 'G': 2, 'W': 1};
+      expect(sectionFor('C', apps), 'C');
+      expect(sectionFor('A', apps), 'C');
+      expect(sectionFor('#', apps), 'C');
+      expect(sectionFor('H', apps), 'W');
+      expect(sectionFor('Z', apps), 'W');
+      expect(sectionFor('C', const <String, int>{}), isNull);
+    });
+  });
 }
