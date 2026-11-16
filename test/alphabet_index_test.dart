@@ -133,6 +133,10 @@ void main() {
     await _settle(tester);
 
     expect(find.bySemanticsLabel(RegExp(r'^Showing G')), findsOneWidget, reason: 'the bubble names the letter under the finger');
+    // Beside the index, on screen, level with the finger.
+    final Offset bubble = tester.getCenter(find.bySemanticsLabel(RegExp(r'^Showing G')));
+    expect(bubble.dx, inInclusiveRange(_phone.width - 140, _phone.width - 40), reason: 'next to the index');
+    expect((bubble.dy - to.dy).abs(), lessThan(40), reason: 'level with the finger');
     final double gTop = _headingTop(tester, 'G');
     expect(gTop, greaterThanOrEqualTo(_searchBottom(tester)));
     expect(gTop, lessThan(_searchBottom(tester) + 60), reason: 'G is at the top of the list while the finger is on it');

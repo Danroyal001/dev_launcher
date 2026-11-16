@@ -30,9 +30,11 @@ String deviceLocale() => WidgetsBinding.instance.platformDispatcher.locale.toStr
 Widget _recentsButtonIcon(BuildContext context, {required RecentsGlyph glyph, double size = 22}) {
   final double thick = (size / 9).clamp(2.0, 4.0);
   final Widget bar = DVText('').modifier(glyph == RecentsGlyph.lines ? DVModifier().width(size * 0.82).height(thick).backgroundColor(LauncherColors.text).rounded(thick) : DVModifier().width(thick).height(size * 0.72).backgroundColor(LauncherColors.text).rounded(thick));
-  return glyph == RecentsGlyph.lines
+  final Widget bars = glyph == RecentsGlyph.lines
       ? DVBox.list(<Widget>[bar, bar, bar], spacing: size * 0.18, crossAlign: DVCrossAlign.center)
       : DVBox.row(<Widget>[bar, bar, bar], spacing: size * 0.2, crossAlign: DVCrossAlign.center);
+  // In the middle of the button, at its own size.
+  return DVBox(DVBox(bars, DVModifier().width(size).height(size).align(Alignment.center)), DVModifier().align(Alignment.center));
 }
 
 /// The apps button's grid of nine dots, drawn as boxes for the same reason.
@@ -40,7 +42,7 @@ Widget _recentsButtonIcon(BuildContext context, {required RecentsGlyph glyph, do
 Widget _appsButtonIcon(BuildContext context, {double size = 22}) {
   final double dot = size / 5;
   final Widget row = DVBox.row(<Widget>[for (int column = 0; column < 3; column++) DVText('').modifier(DVModifier().width(dot).height(dot).backgroundColor(LauncherColors.text).rounded(dot / 2))], spacing: dot, crossAlign: DVCrossAlign.center);
-  return DVBox.list(<Widget>[row, row, row], spacing: dot, crossAlign: DVCrossAlign.center);
+  return DVBox(DVBox(DVBox.list(<Widget>[row, row, row], spacing: dot, crossAlign: DVCrossAlign.center), DVModifier().width(size).height(size).align(Alignment.center)), DVModifier().align(Alignment.center));
 }
 
 /// Follows the store from the first frame: names at once, icons as they come.

@@ -248,7 +248,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final Widget? bubble = scrubbing.value.isEmpty
       ? null
       : DVBox(
-          DVText(scrubbing.value).modifier(mono(size: 28, bold: true, color: LauncherColors.page).centered().width(56).height(56).backgroundColor(LauncherColors.accent).rounded(28).semanticLabel('Showing ${scrubbing.value}').semanticRole('status')),
+          DVText(scrubbing.value).modifier(mono(size: 28, bold: true, color: LauncherColors.page).align(Alignment.center).width(56).height(56).backgroundColor(LauncherColors.accent).rounded(28).semanticLabel('Showing ${scrubbing.value}').semanticRole('status')),
           DVModifier().offset(fromLeft(indexLeft ? indexWidth + 16 : size.width - indexWidth - 16 - 56, 56), (indexTop + scrubAt.value - 28).clamp(0.0, double.infinity)),
         );
 
