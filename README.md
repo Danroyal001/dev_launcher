@@ -59,6 +59,8 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Small phones and large text.** The home screen scrolls when it is taller than the room above the
   dock, the dock's icons shrink to fit across, and titles end in an ellipsis instead of overflowing
   (tested at 320 px wide and up to 2x font size).
+- **One line across the dock.** The round menu and All apps buttons take the same slot as an app
+  icon, so every dock item shares one centre line and one size (tested at 320, 360 and 412 px wide).
 - A dark editor palette and JetBrains Mono. Pins are kept on the phone.
 
 ## Use it as your home screen
