@@ -17,6 +17,9 @@ const String recentsFile = 'dev-launcher/recents.json';
 const String appsFile = 'dev-launcher/apps.json';
 const String iconFolder = 'dev-launcher/icons';
 
+/// What the home screen says when Android answers that no app is installed.
+const String emptyAppListProblem = 'Could not read your apps: Android listed none. The apps from the last start are shown.';
+
 /// Shown where the device cannot list apps (a browser), clearly as examples.
 const List<DVInstalledApp> previewApps = <DVInstalledApp>[
   DVInstalledApp(packageName: 'com.termux', label: 'Termux'),
@@ -150,6 +153,14 @@ class LauncherStore {
       _emit(_current.copyWith(loading: false, problem: 'Could not read your apps: $error'));
       return;
     }
+    // A phone always has apps to open (Settings, and this launcher itself):
+    // an empty answer is a question that failed, not a phone with nothing on
+    // it. Keep the names from the last start rather than wiping the home row
+    // and the dock, and say so.
+    if (apps.isEmpty) {
+      _emit(_current.copyWith(loading: false, problem: emptyAppListProblem));
+      return;
+    }
     _listed = true;
     _listedAt = DateTime.now();
     _emit(_current.copyWith(apps: apps, loading: false));
@@ -190,6 +201,7 @@ class LauncherStore {
     } on Object {
       return;
     }
+    if (fresh.isEmpty) return;
     final AppListChange change = appListChange(
       before: <String>[for (final DVInstalledApp app in _current.apps) app.packageName],
       after: <String>[for (final DVInstalledApp app in fresh) app.packageName],
