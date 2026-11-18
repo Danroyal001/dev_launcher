@@ -21,13 +21,18 @@ Widget _appIcon(BuildContext context, {required DVInstalledApp app, double size 
   );
 }
 
+/// The space an app tile keeps round its icon (its tap and press area).
+/// Anything that sits in a row of tiles (the dock's round buttons) keeps the
+/// same, so their centres line up.
+const double appTileInset = 6;
+
 /// An app: tap opens it, long press offers pin, dock, info and uninstall.
 @DVFunctionalWidget()
 Widget _appTile(BuildContext context, {required DVInstalledApp app, required VoidCallback onOpen, required VoidCallback onMore, double iconSize = 52, bool showLabel = true}) =>
     DVBox.list(<Widget>[
       AppIcon(app: app, size: iconSize),
       if (showLabel) DVText(app.label).modifier(mono(size: iconSize < 44 ? 11 : 13).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
-    ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(6).rounded(14).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(onOpen).onLongPress(onMore));
+    ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(appTileInset).rounded(14).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(onOpen).onLongPress(onMore));
 
 /// What a long press on [app] offers.
 @DVFunctionalWidget()

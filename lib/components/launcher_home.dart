@@ -275,9 +275,12 @@ Widget _launcherHome(BuildContext context) {
   // the narrowest phone: icons shrink rather than push past the edge.
   final double dockWidth = (kind == ScreenKind.phone ? size.width - side * 2 : (size.width - side * 2).clamp(0, 640).toDouble()) - 8;
   final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 2) - 12).clamp(32, iconSize).toDouble();
+  // The round buttons take the same slot as an app tile: the icon's size and
+  // the tile's inset round it, so every dock item shares one centre line
+  // (18 Nov: without the inset the buttons sat 6 px above the icons).
   final Widget appsButton = DVBox(
     AppsButtonIcon(size: watch ? 18 : 22),
-    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().margin(appTileInset).tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
   );
 
   // The Recents button as the phone's navigation bar has it: its glyph, and
@@ -286,7 +289,7 @@ Widget _launcherHome(BuildContext context) {
   final bool recentsFirst = recentsSideFor(current.layout.recentsSide, navBar) == RecentsSide.left;
   final Widget recentsButton = DVBox(
     RecentsButtonIcon(glyph: navBar.glyph),
-    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().margin(appTileInset).tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
   );
 
   final Widget content = DVBox.list(<Widget>[
