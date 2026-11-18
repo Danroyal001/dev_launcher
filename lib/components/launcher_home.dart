@@ -275,12 +275,9 @@ Widget _launcherHome(BuildContext context) {
   // the narrowest phone: icons shrink rather than push past the edge.
   final double dockWidth = (kind == ScreenKind.phone ? size.width - side * 2 : (size.width - side * 2).clamp(0, 640).toDouble()) - 8;
   final double dockIcon = watch ? iconSize : (dockWidth / (dock.length + 2) - 12).clamp(32, iconSize).toDouble();
-  // The round buttons take the same slot as an app tile: the icon's size and
-  // the tile's inset round it, so every dock item shares one centre line
-  // (18 Nov: without the inset the buttons sat 6 px above the icons).
   final Widget appsButton = DVBox(
     AppsButtonIcon(size: watch ? 18 : 22),
-    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().margin(appTileInset).tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).align(Alignment.center).tooltip('All apps').semanticLabel('All apps').onTap(openDrawer),
   );
 
   // The Recents button as the phone's navigation bar has it: its glyph, and
@@ -289,7 +286,7 @@ Widget _launcherHome(BuildContext context) {
   final bool recentsFirst = recentsSideFor(current.layout.recentsSide, navBar) == RecentsSide.left;
   final Widget recentsButton = DVBox(
     RecentsButtonIcon(glyph: navBar.glyph),
-    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).centered().margin(appTileInset).tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
+    DVModifier().width(dockIcon).height(dockIcon).backgroundColor(const Color(0x33FFFFFF)).rounded(dockIcon * 0.5).align(Alignment.center).tooltip('Recent apps').semanticLabel('Recent apps').onTap(() => show('recents')),
   );
 
   final Widget content = DVBox.list(<Widget>[
@@ -323,6 +320,9 @@ Widget _launcherHome(BuildContext context) {
           ),
         ),
       ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
+    // Why the apps could not be read, rather than an empty screen that only
+    // says to long-press an app.
+    if (current.problem.isNotEmpty) DVText(current.problem).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
     if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
     if (query.trim().isNotEmpty) ...<Widget>[
       AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
@@ -338,13 +338,18 @@ Widget _launcherHome(BuildContext context) {
   // large text, many apps on home): nothing is cut off out of reach.
   ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24)).scrollable();
 
+  // Every dock item sits in the same slot, an app tile's size (its icon and
+  // the tile's padding), with the item in the middle of it; the row spaces
+  // the slots evenly and centres them on one line.
+  final double dockSlot = dockIcon + 12;
+  Widget slot(Widget item) => DVBox(item, DVModifier().width(dockSlot).height(dockSlot).align(Alignment.center));
   final Widget dockRow = DVBox.row(<Widget>[
-    if (recentsFirst) recentsButton,
-    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
-    appsButton,
-    for (final DVInstalledApp app in dock.skip(2)) AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName),
-    if (!recentsFirst) recentsButton,
-  ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
+    if (recentsFirst) slot(recentsButton),
+    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
+    slot(appsButton),
+    for (final DVInstalledApp app in dock.skip(2)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
+    if (!recentsFirst) slot(recentsButton),
+  ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
   // Drag up from the dock (or the handle above it) and the drawer follows the
   // finger, one to one; let go and it settles open or closed.

@@ -17,14 +17,9 @@ Widget _appIcon(BuildContext context, {required DVInstalledApp app, double size 
   if (icon != null && icon.isNotEmpty) return DVBox.image(DVImage.memory(icon, alt: ''), width: size, height: size, fit: BoxFit.contain);
   return DVBox(
     DVText(app.label.isEmpty ? '?' : app.label.substring(0, 1).toUpperCase()).modifier(mono(size: size * 0.42, bold: true, color: LauncherColors.accent).align(Alignment.center)),
-    DVModifier().width(size).height(size).backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(size * 0.28).centered(),
+    DVModifier().width(size).height(size).backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(size * 0.28).align(Alignment.center),
   );
 }
-
-/// The space an app tile keeps round its icon (its tap and press area).
-/// Anything that sits in a row of tiles (the dock's round buttons) keeps the
-/// same, so their centres line up.
-const double appTileInset = 6;
 
 /// An app: tap opens it, long press offers pin, dock, info and uninstall.
 @DVFunctionalWidget()
@@ -32,7 +27,7 @@ Widget _appTile(BuildContext context, {required DVInstalledApp app, required Voi
     DVBox.list(<Widget>[
       AppIcon(app: app, size: iconSize),
       if (showLabel) DVText(app.label).modifier(mono(size: iconSize < 44 ? 11 : 13).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
-    ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(appTileInset).rounded(14).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(onOpen).onLongPress(onMore));
+    ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(6).rounded(14).semanticLabel(app.label).tooltip('Open ${app.label}').onTap(onOpen).onLongPress(onMore));
 
 /// What a long press on [app] offers.
 @DVFunctionalWidget()
