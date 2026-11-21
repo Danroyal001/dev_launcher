@@ -84,4 +84,47 @@ void main() {
     await restarted.start();
     expectKept(restarted);
   });
+
+  group("retries", retryMain);
+}
+
+// A home app starts with the phone, often before Android can list its apps:
+// the first answer can be empty or an error. The launcher asks again, and
+// asks again whenever it comes back to the front, until it gets the list.
+void retryMain() {
+  late DVMemoryFileStorageAdapter files;
+
+  setUp(() {
+    files = DVMemoryFileStorageAdapter();
+    DVDeviceStorage.useAdapters(files);
+  });
+
+  tearDown(() {
+    for (final String binding in <String>['apps.list', 'apps.icon', 'apps.isDefaultLauncher', 'apps.defaultFor']) {
+      DVNativeBridge.unregister(binding);
+    }
+    DVDeviceStorage.reset();
+  });
+
+  test('an empty first answer is asked again, and the apps arrive', () async {
+    int asked = 0;
+    _phoneAnswers(() => ++asked < 3 ? <Object?>[] : _listed());
+    final LauncherStore store = LauncherStore(retryDelays: const <Duration>[Duration.zero, Duration.zero]);
+    await store.start();
+    expect(asked, 3);
+    expect(store.current.apps.map((DVInstalledApp app) => app.label), containsAll(<String>['Phone', 'Camera', 'Chrome']));
+    expect(store.current.problem, isEmpty);
+  });
+
+  test('a start that never got the list gets it when the launcher comes back to the front', () async {
+    bool ready = false;
+    _phoneAnswers(() => ready ? _listed() : throw StateError('package manager not ready'));
+    final LauncherStore store = LauncherStore(retryDelays: const <Duration>[]);
+    await store.start();
+    expect(store.current.problem, contains('package manager not ready'));
+    ready = true;
+    await store.refreshApps();
+    expect(store.current.apps.map((DVInstalledApp app) => app.label), containsAll(<String>['Phone', 'Camera', 'Chrome']));
+    expect(store.current.problem, isEmpty);
+  });
 }
