@@ -104,7 +104,12 @@ List<DVInstalledApp> decodeAppNames(String text) {
 /// The one store, shared by the home page and the app drawer.
 class LauncherStore {
   /// A store of its own; the app uses [instance].
-  LauncherStore();
+  LauncherStore({this.retryDelays = const <Duration>[Duration(milliseconds: 1500), Duration(seconds: 4)]});
+
+  /// How long to wait before asking Android for the apps again when an answer
+  /// was empty or failed. A home app starts with the phone, often before
+  /// Android can list anything (owner, 18 Nov: empty home screen on 0.1.11).
+  final List<Duration> retryDelays;
 
   static final LauncherStore instance = LauncherStore();
 
@@ -145,25 +150,41 @@ class LauncherStore {
     // phone with many apps is still answering.
     final List<DVInstalledApp> remembered = decodeAppNames(await _readText(appsFile));
     _emit(_current.copyWith(layout: layout, recents: recents, apps: remembered, loading: remembered.isEmpty));
-    List<DVInstalledApp> apps;
-    try {
-      // Names only: one quick question to the system.
-      apps = await platform.list(icons: false);
-    } on Object catch (error) {
-      _emit(_current.copyWith(loading: false, problem: 'Could not read your apps: $error'));
-      return;
+    await _listOrRetry();
+  }
+
+  /// Asks Android for the apps, again after each of [retryDelays] while the
+  /// answer is empty or an error. When none works the apps from the last
+  /// start stay, the home screen says why, and [refreshApps] (each return to
+  /// the front) asks again.
+  Future<void> _listOrRetry() async {
+    String? problem;
+    for (int attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+      if (attempt > 0) await Future<void>.delayed(retryDelays[attempt - 1]);
+      try {
+        // Names only: one quick question to the system.
+        final List<DVInstalledApp> apps = await DV.Platform.apps.list(icons: false);
+        // A phone always has apps to open (Settings, and this launcher
+        // itself): an empty answer is a question that failed, not a phone
+        // with nothing on it.
+        if (apps.isNotEmpty) {
+          await _applyFirstList(apps);
+          return;
+        }
+        problem = emptyAppListProblem;
+      } on Object catch (error) {
+        problem = 'Could not read your apps: $error';
+      }
     }
-    // A phone always has apps to open (Settings, and this launcher itself):
-    // an empty answer is a question that failed, not a phone with nothing on
-    // it. Keep the names from the last start rather than wiping the home row
-    // and the dock, and say so.
-    if (apps.isEmpty) {
-      _emit(_current.copyWith(loading: false, problem: emptyAppListProblem));
-      return;
-    }
+    // Keep the names from the last start rather than wiping the home row and
+    // the dock, and say so.
+    _emit(_current.copyWith(loading: false, problem: problem));
+  }
+
+  Future<void> _applyFirstList(List<DVInstalledApp> apps) async {
     _listed = true;
     _listedAt = DateTime.now();
-    _emit(_current.copyWith(apps: apps, loading: false));
+    _emit(_current.copyWith(apps: apps, loading: false, problem: ''));
     await _forgetUninstalled();
     unawaited(_writeText(appsFile, encodeAppNames(apps)));
     unawaited(refreshDefault());
@@ -176,7 +197,9 @@ class LauncherStore {
   /// the recents and the icon cache. Called when the launcher comes back to
   /// the front, which is when an install or uninstall can have happened.
   Future<void> refreshApps() {
-    if (!_listed || _current.preview) return Future<void>.value();
+    if (_current.preview || !_started) return Future<void>.value();
+    // The first start never got the list: ask for it again, as start does.
+    if (!_listed) return _refreshing ??= _listOrRetry().whenComplete(() => _refreshing = null);
     return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
   }
 
