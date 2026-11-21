@@ -139,8 +139,8 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
   final Widget header = DVBox.row(<Widget>[
     link('‹ back', 'Back', close),
     DVBox(DVText('recents settings').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).maxLines(1).overflow(TextOverflow.ellipsis).semanticHeading(1)), DVModifier().fill()),
-  ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: MediaQuery.paddingOf(context).top + 4, bottom: 8));
+  ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: 4, bottom: 8));
 
-  final Widget body = DVBox.list(<Widget>[sideSetting, service, diagnostics], spacing: 24, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom).maxWidth(760)).scrollable();
+  final Widget body = DVBox.list(<Widget>[sideSetting, service, diagnostics], spacing: 24, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 12).maxWidth(760)).scrollable();
   return DVBox.list(<Widget>[header, DVBox(body, DVModifier().fill())], spacing: 0, modifier: DVModifier().backgroundColor(LauncherColors.page).height(size.height));
 }

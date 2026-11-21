@@ -336,7 +336,7 @@ Widget _launcherHome(BuildContext context) {
     if (watch) DVBox(appsButton, DVModifier().centered()),
   // Scrolls when it is taller than the room above the dock (a small phone,
   // large text, many apps on home): nothing is cut off out of reach.
-  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28 + MediaQuery.paddingOf(context).top, bottom: 24)).scrollable();
+  ], spacing: watch ? 14 : 22, modifier: DVModifier().paddingOnly(left: side, right: side, top: watch ? side * 0.6 : 28, bottom: 24)).scrollable();
 
   // Every dock item sits in the same slot, an app tile's size (its icon and
   // the tile's padding), with the item in the middle of it; the row spaces
@@ -372,9 +372,12 @@ Widget _launcherHome(BuildContext context) {
   // A browser has no wallpaper to show: the preview sits on the dark page.
   return DVBox(DVBox.stack(<Widget>[
     DVBox.list(<Widget>[
-      DVBox(content, DVModifier().height(size.height - (watch ? 0 : dockIcon + 85 + MediaQuery.paddingOf(context).bottom)).clipContent().onSwipeLeft(() => show('recents'))),
-      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 16 + MediaQuery.paddingOf(context).bottom).centered().merge(dragUp)),
-    ], spacing: 0),
+      // The content takes whatever the dock leaves: no height worked out by
+      // hand. The page shell's SafeArea keeps both clear of the status and
+      // navigation bars (owner, 21 Nov: a hand-made 85 left a 40 dp gap).
+      DVBox(content, DVModifier().fill().clipContent().onSwipeLeft(() => show('recents'))),
+      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 8).centered().merge(dragUp)),
+    ], spacing: 0, modifier: DVModifier().height(size.height)),
     drawer,
     if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () => show('settings')),
     if (overlay.value == 'settings') RecentsSettings(onClose: () => show('recents')),

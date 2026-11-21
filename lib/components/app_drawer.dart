@@ -93,7 +93,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
   final List<DVInstalledApp> recent = current.recentApps.take(columns).toList();
 
-  final double safeTop = MediaQuery.paddingOf(context).top;
+  // The page shell's SafeArea already keeps the drawer under the status bar.
   // The drawer's settings: which edge the letter index takes.
   Widget indexChoice(IndexSide choice, String name, String hint) {
     final bool picked = current.layout.indexSide == choice;
@@ -151,7 +151,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
             mono(size: 22, color: LauncherColors.muted).centered().minimumTapTarget(width: 44, height: 44).semanticLabel('Clear search').tooltip('Clear search').onTap(() => search.value = ''),
           ),
       ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
-  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
+  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
   final Widget list = DVBox.list(<Widget>[
     // The drawer's own settings, at the top of the list: a short link, so the
@@ -182,7 +182,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           ], columns: columns, spacing: 4, responsive: false),
         ], spacing: 8),
       ),
-  ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom)).scrollable();
+  ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 12)).scrollable();
 
   // The letter index: # and A to Z down the right edge, each letter one cell
   // of the same height, so the cell under a finger is its height divided into
@@ -193,8 +193,8 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   // it always fits whatever the screen and font size; the header's height is
   // worked out from the same sizes the header uses.
   final double textScale = MediaQuery.textScalerOf(context).scale(1);
-  final double indexTop = safeTop + 4 + (embedded ? 25 : 0) + (14 * 1.3 * textScale + 20).clamp(48.0, double.infinity) + 8 + (16 * 1.3 * textScale + 34).clamp(52.0, double.infinity) + 16;
-  final double cell = ((size.height - indexTop - 16 - MediaQuery.paddingOf(context).bottom) / indexLetters.length).clamp(8.0, kind == ScreenKind.tv ? 36.0 : 26.0);
+  final double indexTop = 4 + (embedded ? 25 : 0) + (14 * 1.3 * textScale + 20).clamp(48.0, double.infinity) + 8 + (16 * 1.3 * textScale + 34).clamp(52.0, double.infinity) + 16;
+  final double cell = ((size.height - indexTop - 8) / indexLetters.length).clamp(8.0, kind == ScreenKind.tv ? 36.0 : 26.0);
   final double letterSize = (cell * 0.7).clamp(7.0, 12.0);
   final double indexWidth = kind == ScreenKind.tv ? 40 : 30;
   void jump(String letter) {
