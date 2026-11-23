@@ -12,12 +12,13 @@ import 'package:intl/intl.dart' show Bidi;
 import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
+import '../services/updates.dart';
 import 'app_tiles.dart';
 import 'launcher_home.dart' show deviceLocale, followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
-Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd}) {
+Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates}) {
   // Embedded in the home screen, the drawer is closed by the home screen;
   // on its own (/apps) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -153,10 +154,16 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
       ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
   ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
+  final Widget settingsLink = DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read()));
   final Widget list = DVBox.list(<Widget>[
     // The drawer's own settings, at the top of the list: a short link, so the
     // header stays one line on the smallest phone with the largest font.
-    if (!watch) DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).align(Alignment.centerRight).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read())),
+    // Updates on the left, the drawer's settings on the right, one line.
+    if (!watch)
+      DVBox.row(<Widget>[
+        DVText('updates · $launcherVersion').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Updates: this phone has Dev Launcher $launcherVersion').tooltip('Which version this phone has, and the newest one to download').onTap(() => onUpdates != null ? onUpdates() : DV.Navigation.navigate(DVRoutes.updates))),
+        settingsLink,
+      ], spacing: 0, align: DVAlign.spaceBetween, crossAlign: DVCrossAlign.center),
     if (settingsOpen.value && !watch) drawerSettings,
     // The apps opened last, newest first: one row, above the A-Z list, as
     // phone launchers put their suggestions. Hidden while searching, where it

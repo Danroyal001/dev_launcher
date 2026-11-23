@@ -61,6 +61,15 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
   (tested at 320 px wide and up to 2x font size).
 - **One line across the dock.** The round menu and All apps buttons take the same slot as an app
   icon, so every dock item shares one centre line and one size (tested at 320, 360 and 412 px wide).
+- **Updates in the launcher.** "updates" in the drawer (and /updates) shows which version this
+  phone has, asks GitHub for the newest release, and lists its APKs with the one for this phone's
+  processor first (32-bit ARM on a Tecno). A home app cannot install itself, so each download is
+  shared (pick the browser) or copied; "Download" opens it in the browser once the phone's Dartvel
+  has external links (dartvel_dev #293). When a newer version is out the home screen says so once
+  per start, after the apps are in.
+- **Labels and the prompt on the layout.** Each name sits under its icon by the tile's own column
+  (same 6 px gap, centred), and the prompt sign is centred on the command line by the row; no
+  margin nudges (tested at 320, 360 and 412 px wide).
 - A dark editor palette and JetBrains Mono. Pins are kept on the phone.
 
 ## Use it as your home screen

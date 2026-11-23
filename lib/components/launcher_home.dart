@@ -12,10 +12,12 @@ import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
 import 'app_drawer.dart';
 import '../services/signal_log.dart';
+import '../services/updates.dart';
 import 'app_tiles.dart';
 import 'recents_screen.dart';
 import 'recents_settings.dart';
 import 'theme.dart';
+import 'updates_screen.dart';
 
 const Set<String> commandWords = <String>{'info', 'pin', 'unpin', 'uninstall'};
 
@@ -67,6 +69,9 @@ Widget _launcherHome(BuildContext context) {
   final DVSignal<String> selected = context.signal('');
   final DVSignal<DateTime> now = context.signal(DateTime.now());
   final DVSignal<bool> started = context.signal(false);
+  // The newest release, once asked: a note on the home screen when it is
+  // newer than this phone's.
+  final DVSignal<UpdateCheck> updateCheck = context.signal(LauncherUpdates.instance.current);
   // The drawer's top edge: null when closed, 0 when open, and anywhere
   // between while a finger drags it.
   final DVSignal<double?> drawerTop = context.signal<double?>(null);
@@ -148,7 +153,21 @@ Widget _launcherHome(BuildContext context) {
       if (!context.mounted || started.read()) return;
       started.value = true;
       followStore(context, snapshot);
-      store.start();
+      late final StreamSubscription<UpdateCheck> updatesSubscription;
+      updatesSubscription = LauncherUpdates.instance.changes.listen((UpdateCheck next) {
+        if (!context.mounted) {
+          updatesSubscription.cancel();
+          return;
+        }
+        updateCheck.value = next;
+      });
+      // Once the apps are in (never competing with the first screen), ask
+      // GitHub once whether a newer Dev Launcher is out. Not in the browser
+      // preview.
+      store.start().then((_) {
+        if (!context.mounted) return;
+        if (LauncherUpdates.instance.autoCheck ?? !store.current.preview) unawaited(LauncherUpdates.instance.checkOnce());
+      });
       SignalLog.instance.start();
       SignalLog.instance.note('started', 'screen height ${screenHeight().round()}');
       // Back from Settings (after choosing the home app) or from any app:
@@ -270,6 +289,7 @@ Widget _launcherHome(BuildContext context) {
   final List<DVInstalledApp> devTools = current.apps.where((DVInstalledApp app) => isDevTool(app.packageName)).toList();
   final List<DVInstalledApp> dock = current.appsFor(current.dock);
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
+  final LauncherRelease? newerRelease = switch (updateCheck.value.release) { final LauncherRelease release when isNewer(release) => release, _ => null };
 
   // Every dock slot (its apps and the apps button) fits across the dock on
   // the narrowest phone: icons shrink rather than push past the edge.
@@ -309,9 +329,11 @@ Widget _launcherHome(BuildContext context) {
       DVBox.row(<Widget>[
         DVText('❯').modifier(mono(size: 18, bold: true, color: LauncherColors.accent)),
         DVText(query).modifier(
-          mono(size: 16).input(
-            label: 'Command',
-            hint: 'open an app or run a command',
+          // No floating label: it reserves a line above the text, which pushed
+          // the typed text below the prompt sign. The hint says it in the field
+          // and the semantic label names it for a screen reader.
+          mono(size: 16).semanticLabel('Command').input(
+            hint: 'type an app or a command',
             onChanged: (String value) {
               typed.value = value;
               status.value = '';
@@ -319,11 +341,18 @@ Widget _launcherHome(BuildContext context) {
             onSubmitted: submit,
           ),
         ),
-      ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
+      ], spacing: 10, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
     // Why the apps could not be read, rather than an empty screen that only
     // says to long-press an app.
     if (current.problem.isNotEmpty) DVText(current.problem).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
     if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (newerRelease != null && !watch)
+      DVText('Dev Launcher ${newerRelease.version} is out · tap to download').modifier(
+        mono(size: 13, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(10).paddingSymmetric(horizontal: 14, vertical: 12).minimumTapTarget(width: 48, height: 48)
+            .semanticLabel('Dev Launcher ${newerRelease.version} is out. This phone has $launcherVersion. Open updates')
+            .tooltip('See what is new and download it')
+            .onTap(() => show('updates')),
+      ),
     if (query.trim().isNotEmpty) ...<Widget>[
       AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
       if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app.').modifier(mono(size: 13, color: LauncherColors.muted)),
@@ -359,7 +388,11 @@ Widget _launcherHome(BuildContext context) {
   ));
   final double top = drawerTop.value ?? size.height;
   final Widget drawer = DVBox(
-    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer),
+    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer, onUpdates: () {
+      // Updates first, so closing the drawer keeps Back for it.
+      show('updates');
+      closeDrawer();
+    }),
     // Always animated, with no duration while a finger drags: switching the
     // animation off rebuilt the drawer and cancelled the drag after one move.
     DVModifier().offset(0, top).height(size.height).animate(dragging.value ? .zero : const Duration(milliseconds: 220)),
@@ -381,6 +414,7 @@ Widget _launcherHome(BuildContext context) {
     drawer,
     if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () => show('settings')),
     if (overlay.value == 'settings') RecentsSettings(onClose: () => show('recents')),
+    if (overlay.value == 'updates') UpdatesScreen(onClose: () => show('')),
     if (sheetApp != null)
       DVBox(
         AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
