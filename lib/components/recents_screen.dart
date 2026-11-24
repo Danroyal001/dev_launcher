@@ -74,7 +74,7 @@ Widget _recentsScreen(BuildContext context, {VoidCallback? onClose, VoidCallback
   final Widget header = DVBox.row(<Widget>[
     link('‹ home', 'Back to the home screen', close),
     DVBox(DVText('recent apps').modifier(mono(size: 14, color: LauncherColors.accent).paddingSymmetric(vertical: 10).maxLines(1).overflow(TextOverflow.ellipsis).semanticHeading(1)), DVModifier().fill()),
-  ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: MediaQuery.paddingOf(context).top + (watch ? side * 0.4 : 4), bottom: 8));
+  ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8));
 
   final Widget list = DVBox.list(<Widget>[
     if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
@@ -85,7 +85,7 @@ Widget _recentsScreen(BuildContext context, {VoidCallback? onClose, VoidCallback
         clearAll,
       ], spacing: 16),
     if (onSettings != null && !watch) link('Recents button settings', 'Make the phone\'s Recents button open this screen, and see what the phone reports', onSettings, color: LauncherColors.accent),
-  ], spacing: 10, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom)).scrollable();
+  ], spacing: 10, modifier: DVModifier().paddingOnly(left: side, right: side, top: 8, bottom: 12)).scrollable();
 
   // No swipe to close here: a sideways swipe scrolls the cards. Back, Home
   // and "‹ home" close it.

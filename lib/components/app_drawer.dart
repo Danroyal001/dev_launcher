@@ -12,12 +12,13 @@ import 'package:intl/intl.dart' show Bidi;
 import '../dartvel_client/dartvel_client.dart';
 import '../services/launcher_logic.dart';
 import '../services/launcher_store.dart';
+import '../services/updates.dart';
 import 'app_tiles.dart';
 import 'launcher_home.dart' show deviceLocale, followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
-Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd}) {
+Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates}) {
   // Embedded in the home screen, the drawer is closed by the home screen;
   // on its own (/apps) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -93,7 +94,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
   final List<DVInstalledApp> recent = current.recentApps.take(columns).toList();
 
-  final double safeTop = MediaQuery.paddingOf(context).top;
+  // The page shell's SafeArea already keeps the drawer under the status bar.
   // The drawer's settings: which edge the letter index takes.
   Widget indexChoice(IndexSide choice, String name, String hint) {
     final bool picked = current.layout.indexSide == choice;
@@ -151,12 +152,18 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
             mono(size: 22, color: LauncherColors.muted).centered().minimumTapTarget(width: 44, height: 44).semanticLabel('Clear search').tooltip('Clear search').onTap(() => search.value = ''),
           ),
       ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
-  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: safeTop + (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
+  ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
+  final Widget settingsLink = DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read()));
   final Widget list = DVBox.list(<Widget>[
     // The drawer's own settings, at the top of the list: a short link, so the
     // header stays one line on the smallest phone with the largest font.
-    if (!watch) DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).align(Alignment.centerRight).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read())),
+    // Updates on the left, the drawer's settings on the right, one line.
+    if (!watch)
+      DVBox.row(<Widget>[
+        DVText('updates · $launcherVersion').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Updates: this phone has Dev Launcher $launcherVersion').tooltip('Which version this phone has, and the newest one to download').onTap(() => onUpdates != null ? onUpdates() : DV.Navigation.navigate(DVRoutes.updates))),
+        settingsLink,
+      ], spacing: 0, align: DVAlign.spaceBetween, crossAlign: DVCrossAlign.center),
     if (settingsOpen.value && !watch) drawerSettings,
     // The apps opened last, newest first: one row, above the A-Z list, as
     // phone launchers put their suggestions. Hidden while searching, where it
@@ -182,7 +189,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           ], columns: columns, spacing: 4, responsive: false),
         ], spacing: 8),
       ),
-  ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 32 + MediaQuery.paddingOf(context).bottom)).scrollable();
+  ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 12)).scrollable();
 
   // The letter index: # and A to Z down the right edge, each letter one cell
   // of the same height, so the cell under a finger is its height divided into
@@ -193,8 +200,8 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   // it always fits whatever the screen and font size; the header's height is
   // worked out from the same sizes the header uses.
   final double textScale = MediaQuery.textScalerOf(context).scale(1);
-  final double indexTop = safeTop + 4 + (embedded ? 25 : 0) + (14 * 1.3 * textScale + 20).clamp(48.0, double.infinity) + 8 + (16 * 1.3 * textScale + 34).clamp(52.0, double.infinity) + 16;
-  final double cell = ((size.height - indexTop - 16 - MediaQuery.paddingOf(context).bottom) / indexLetters.length).clamp(8.0, kind == ScreenKind.tv ? 36.0 : 26.0);
+  final double indexTop = 4 + (embedded ? 25 : 0) + (14 * 1.3 * textScale + 20).clamp(48.0, double.infinity) + 8 + (16 * 1.3 * textScale + 34).clamp(52.0, double.infinity) + 16;
+  final double cell = ((size.height - indexTop - 8) / indexLetters.length).clamp(8.0, kind == ScreenKind.tv ? 36.0 : 26.0);
   final double letterSize = (cell * 0.7).clamp(7.0, 12.0);
   final double indexWidth = kind == ScreenKind.tv ? 40 : 30;
   void jump(String letter) {

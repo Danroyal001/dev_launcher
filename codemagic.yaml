@@ -1,0 +1,22 @@
+# App Preview only: fetches an APK already built and signed on our server
+# (dartvel build android) from this repository's GitHub release, so Codemagic's
+# App Preview can "Quick launch" it. Nothing is built here.
+workflows:
+  app-preview:
+    name: App Preview (download release APK)
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    environment:
+      vars:
+        RELEASE_TAG: v0.1.13-rc1
+    scripts:
+      - name: Download the release APKs
+        script: |
+          mkdir -p out
+          for abi in x86_64 arm64-v8a; do
+            curl -fsSL -o "out/dev-launcher-$abi.apk" \
+              "https://github.com/Danroyal001/dev_launcher/releases/download/$RELEASE_TAG/dev-launcher-${RELEASE_TAG#v}-$abi.apk"
+          done
+          ls -la out
+    artifacts:
+      - out/*.apk

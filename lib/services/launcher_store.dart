@@ -63,7 +63,9 @@ class const LauncherSnapshot({
   /// messages, camera and browser apps ([systemDock], from Android); else, where
   /// the phone cannot say, the usual packages for those roles.
   List<String> get dock {
-    if (layout.dockChosen) return layout.dock;
+    // A chosen dock with none of its apps installed (0.1.11 saved an empty
+    // one on the owner's phone, 21 Nov) shows the phone's own apps instead.
+    if (layout.dockChosen && appsFor(layout.dock).isNotEmpty) return layout.dock;
     if (systemDock.isNotEmpty) return systemDock;
     return defaultDock(<String>[for (final DVInstalledApp each in apps) each.packageName]);
   }
@@ -120,6 +122,13 @@ class LauncherStore {
   Future<void>? _refreshing;
   DateTime _listedAt = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _soon;
+
+  /// Why the saved layout could not be read, or null when it was. While it is
+  /// set nothing saves the layout: saving would write the defaults over the
+  /// person's pins (0.1.11 did, owner's Tecno, 21 Nov).
+  String? _layoutUnreadable;
+
+  String get _layoutProblem => _layoutUnreadable == null ? '' : 'Could not read your saved home screen ($_layoutUnreadable), so it is not changed until it can be.';
 
   LauncherSnapshot get current => _current;
   Stream<LauncherSnapshot> get changes => _changes.stream;
@@ -178,13 +187,13 @@ class LauncherStore {
     }
     // Keep the names from the last start rather than wiping the home row and
     // the dock, and say so.
-    _emit(_current.copyWith(loading: false, problem: problem));
+    _emit(_current.copyWith(loading: false, problem: _layoutUnreadable == null ? problem : '$problem $_layoutProblem'));
   }
 
   Future<void> _applyFirstList(List<DVInstalledApp> apps) async {
     _listed = true;
     _listedAt = DateTime.now();
-    _emit(_current.copyWith(apps: apps, loading: false, problem: ''));
+    _emit(_current.copyWith(apps: apps, loading: false, problem: _layoutProblem));
     await _forgetUninstalled();
     unawaited(_writeText(appsFile, encodeAppNames(apps)));
     unawaited(refreshDefault());
@@ -196,8 +205,10 @@ class LauncherStore {
   /// appear (only their icons are drawn), uninstalled ones leave the list,
   /// the recents and the icon cache. Called when the launcher comes back to
   /// the front, which is when an install or uninstall can have happened.
-  Future<void> refreshApps() {
-    if (_current.preview || !_started) return Future<void>.value();
+  Future<void> refreshApps() async {
+    if (_current.preview || !_started) return;
+    // A start that could not read the saved layout reads it again first.
+    if (_layoutUnreadable != null) await _retryLayout();
     // The first start never got the list: ask for it again, as start does.
     if (!_listed) return _refreshing ??= _listOrRetry().whenComplete(() => _refreshing = null);
     return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
@@ -396,12 +407,28 @@ class LauncherStore {
   }
 
   Future<LauncherLayout> _readLayout() async {
-    final String text = await _readText(layoutFile);
-    return text.isEmpty ? const LauncherLayout(dockChosen: false) : LauncherLayout.decode(text);
+    try {
+      final String text = await _storage.exists(layoutFile) ? utf8.decode(await _storage.get(layoutFile)) : '';
+      _layoutUnreadable = null;
+      return text.isEmpty ? const LauncherLayout(dockChosen: false) : LauncherLayout.decode(text);
+    } on Object catch (error) {
+      // Not "nothing saved": something is saved and could not be read.
+      _layoutUnreadable = '$error';
+      return const LauncherLayout(dockChosen: false);
+    }
+  }
+
+  /// Reads the saved layout again after a start that could not, and shows it.
+  Future<void> _retryLayout() async {
+    final LauncherLayout layout = await _readLayout();
+    if (_layoutUnreadable != null) return;
+    final bool layoutProblem = _current.problem.startsWith('Could not read your saved home screen');
+    _emit(_current.copyWith(layout: layout, problem: layoutProblem ? '' : _current.problem));
   }
 
   /// Keeps [layout] and shows it at once.
   Future<String> saveLayout(LauncherLayout layout) async {
+    if (_layoutUnreadable != null) return _layoutProblem;
     _emit(_current.copyWith(layout: layout));
     try {
       await _storage.put(layoutFile, utf8.encode(layout.encode()));
