@@ -1,7 +1,7 @@
 name: dev_launcher
 description: A new Dartvel project
 publish_to: "none"
-version: 0.1.14+14
+version: 0.1.15+15
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
@@ -59,6 +59,12 @@ dartvel:
     # Opt-in for the person: once turned on under Accessibility, the phone's
     # Recents button shows Dev Launcher's own Recents.
     recentsService: true
+    # Opt-in for the person: once given notification access, apps with
+    # notifications show a count on their icon.
+    notificationBadges: true
+    # Asked only when the person turns on "search contacts" in the settings.
+    permissions:
+      - contacts
   platforms:
     - web
     - android
