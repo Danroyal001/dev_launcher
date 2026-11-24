@@ -37,6 +37,7 @@ Widget _launcherSettings(BuildContext context, {required VoidCallback onClose, V
   }
   final LauncherSnapshot current = snapshot.value;
   final LauncherOptions options = current.layout.options;
+  followLauncherTheme(context, options);
 
   Future<void> say(Future<String> Function() run) async => status.value = await run();
   Future<String> attempt(Future<void> Function() call) async {
@@ -51,11 +52,11 @@ Widget _launcherSettings(BuildContext context, {required VoidCallback onClose, V
   Widget heading(String text) => DVText(text).modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2).paddingOnly(top: 8));
   Widget note(String text) => DVText(text).modifier(mono(size: 12, color: LauncherColors.muted));
   Widget button(String label, String hint, VoidCallback onTap) => DVText(label).modifier(
-        mono(size: 14, color: LauncherColors.text).backgroundColor(const Color(0xFF1C2430)).border(Border.all(color: LauncherColors.rule)).rounded(10).paddingSymmetric(horizontal: 14, vertical: 12).minimumTapTarget(width: 48, height: 48).tooltip(hint).onTap(onTap),
+        mono(size: 14, color: LauncherColors.text).backgroundColor(LauncherColors.control).border(Border.all(color: LauncherColors.rule)).rounded(10).paddingSymmetric(horizontal: 14, vertical: 12).minimumTapTarget(width: 48, height: 48).tooltip(hint).onTap(onTap),
       );
   Widget toggle(String label, bool on, String hint, LauncherOptions Function(bool next) change) => DVBox.row(<Widget>[
         DVBox(DVText(label).modifier(mono(size: 14)), DVModifier().fill()),
-        DVText(on ? 'on' : 'off').modifier(mono(size: 13, bold: true, color: on ? LauncherColors.page : LauncherColors.text).backgroundColor(on ? LauncherColors.accent : const Color(0xFF1C2430)).rounded(12).paddingSymmetric(horizontal: 12, vertical: 6)),
+        DVText(on ? 'on' : 'off').modifier(mono(size: 13, bold: true, color: on ? LauncherColors.page : LauncherColors.text).backgroundColor(on ? LauncherColors.accent : LauncherColors.control).rounded(12).paddingSymmetric(horizontal: 12, vertical: 6)),
       ], spacing: 12, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingSymmetric(vertical: 8).minimumTapTarget(width: 48, height: 48).semanticLabel('$label, ${on ? 'on' : 'off'}').tooltip(hint).onTap(() => say(() => store.setOptions(change(!on)))));
 
   final List<DVInstalledApp> hidden = current.appsFor(current.layout.hidden);
@@ -64,11 +65,18 @@ Widget _launcherSettings(BuildContext context, {required VoidCallback onClose, V
       DVText('‹ home').modifier(mono(size: 14).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip('Back to the home screen').onTap(onClose)),
       DVBox(DVText('launcher settings').modifier(mono(size: 16, bold: true, color: LauncherColors.accent).semanticHeading(1).maxLines(1).overflow(TextOverflow.ellipsis)), DVModifier().fill()),
     ], spacing: 8, crossAlign: DVCrossAlign.center),
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
 
     heading('home app'),
     note(current.isDefault ? 'Dev Launcher is your home app.' : 'Dev Launcher is not your home app yet.'),
     if (!current.isDefault) button('make it my home app', 'Ask Android to make Dev Launcher the home app', () => say(store.askToBeDefault)),
+
+    heading('theme'),
+    DVBox.wrapLine(<Widget>[
+      for (final (LauncherTheme theme, String name) in const <(LauncherTheme, String)>[(LauncherTheme.device, 'Follow device'), (LauncherTheme.dark, 'Dark'), (LauncherTheme.light, 'Light')])
+        DVText(options.theme == theme ? '● $name' : '○ $name').modifier(mono(size: 14, color: options.theme == theme ? LauncherColors.accent : LauncherColors.text).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Theme: ${name.toLowerCase()}${options.theme == theme ? ', selected' : ''}').tooltip(theme == LauncherTheme.device ? 'Dark or light as the phone is set' : 'Always ${name.toLowerCase()}').onTap(() => say(() => store.setOptions(options.copyWith(theme: theme))))),
+    ], spacing: 4),
+    note('All apps, menus and these settings. The clock and home screen stay light on the wallpaper.'),
 
     heading('wallpaper'),
     button('change wallpaper', 'Open the phone\'s wallpaper picker', () => say(() => attempt(DV.Platform.apps.pickWallpaper))),

@@ -19,6 +19,7 @@ import 'theme.dart';
 
 @DVFunctionalWidget()
 Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates, VoidCallback? onSettings}) {
+  followLauncherTheme(context, LauncherStore.instance.current.layout.options);
   // Embedded in the home screen, the drawer is closed by the home screen;
   // on its own (/apps) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -123,7 +124,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     onEnd: (ScaleEndDetails details) => onDragEnd?.call(details.velocity.pixelsPerSecond.dy),
   ));
   final Widget handle = DVBox(
-    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
+    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(LauncherColors.rule).rounded(3)),
     DVModifier().centered().paddingSymmetric(vertical: 10).tooltip('Drag down, or tap, to close all apps').onTap(close),
   );
   final Widget header = DVBox.list(<Widget>[
@@ -151,7 +152,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           DVText('×').modifier(
             mono(size: 22, color: LauncherColors.muted).centered().minimumTapTarget(width: 44, height: 44).semanticLabel('Clear search').tooltip('Clear search').onTap(() => search.value = ''),
           ),
-      ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
+      ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
   ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
   final Widget settingsLink = DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read()));
@@ -176,7 +177,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
         ], columns: columns, spacing: 4, responsive: false),
       ], spacing: 8),
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
     if (current.loading) DVText('reading apps…').modifier(mono(size: 13, color: LauncherColors.muted)),
     if (!current.loading && shown.isEmpty) DVText('No app matches "$query".').modifier(mono(size: 14)),
     for (final LetterSection section in sections)
@@ -233,7 +234,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
               .onTap(() => jump(letter)),
         )
       : DVText(letter).modifier(
-          mono(size: letterSize, color: const Color(0x668B949E)).width(indexWidth).fill().centered().semanticLabel('$letter, no apps start with $letter').tooltip('$letter, no apps start with $letter: goes to the next letter that has some').onTap(() => jump(letter)),
+          mono(size: letterSize, color: LauncherColors.muted.withValues(alpha: 0.4)).width(indexWidth).fill().centered().semanticLabel('$letter, no apps start with $letter').tooltip('$letter, no apps start with $letter: goes to the next letter that has some').onTap(() => jump(letter)),
         );
   // Two halves: a Dartvel list longer than 24 builds its far rows later, and
   // every letter must be there at once. Each half takes half the height and

@@ -95,10 +95,16 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Installs show up at once.** Apps installed, updated or uninstalled while Dev Launcher is open
   appear or leave as Android announces them, not only on the next return home.
 - **Launcher settings** (pinch, a long press on the clock, "settings" in the drawer or typed on the
-  prompt): home app, wallpaper picker, gestures, badges, search, hidden apps, letter index side,
+  prompt): home app, theme, wallpaper picker, gestures, badges, search, hidden apps, letter index side,
   Recents button settings, backup and restore of the whole layout (copied to the clipboard as text,
   pasted back to restore; anything else pasted is refused), the phone's own settings and updates.
-- A dark editor palette and JetBrains Mono. Pins are kept on the phone.
+- **Light and dark.** All apps, menus, folders and the settings follow the phone's dark theme, or
+  always dark or always light ("theme" in the launcher settings). The clock, prompt, home screen and
+  dock stay light text on the wallpaper's scrim, as on Pixel Launcher.
+- **Turns with the phone.** On its side, on a tablet either way and on an opened foldable, the home
+  screen, the drawer and the settings lay out with nothing cut off, and an open drawer stays open
+  through a turn (tested at 800x360, 915x412, 800x1280, 1280x800 and 673x841).
+- An editor palette and JetBrains Mono. Pins are kept on the phone.
 
 ## Use it as your home screen
 

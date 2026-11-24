@@ -173,10 +173,15 @@ class const LauncherFolder({required final String id, required final String name
 /// What a home-screen item naming a folder starts with: `folder:<id>`.
 const String folderPrefix = 'folder:';
 
+/// Light or dark for the drawer, menus and settings: the phone's dark theme, or
+/// always one of them. What sits on the wallpaper stays light over its scrim.
+enum LauncherTheme { device, dark, light }
+
 /// The launcher's own settings. Every standard launcher's gestures are on by
 /// default; reading contacts asks for a permission, so it waits to be chosen.
-class const LauncherOptions({final bool swipeDownShade = true, final bool doubleTapLock = true, final bool pinchSettings = true, final bool badges = true, final bool searchWeb = true, final bool searchContacts = false}) {
-  LauncherOptions copyWith({bool? swipeDownShade, bool? doubleTapLock, bool? pinchSettings, bool? badges, bool? searchWeb, bool? searchContacts}) => LauncherOptions(
+class const LauncherOptions({final bool swipeDownShade = true, final bool doubleTapLock = true, final bool pinchSettings = true, final bool badges = true, final bool searchWeb = true, final bool searchContacts = false, final LauncherTheme theme = LauncherTheme.device}) {
+  LauncherOptions copyWith({bool? swipeDownShade, bool? doubleTapLock, bool? pinchSettings, bool? badges, bool? searchWeb, bool? searchContacts, LauncherTheme? theme}) => LauncherOptions(
+        theme: theme ?? this.theme,
         swipeDownShade: swipeDownShade ?? this.swipeDownShade,
         doubleTapLock: doubleTapLock ?? this.doubleTapLock,
         pinchSettings: pinchSettings ?? this.pinchSettings,
@@ -185,7 +190,7 @@ class const LauncherOptions({final bool swipeDownShade = true, final bool double
         searchContacts: searchContacts ?? this.searchContacts,
       );
 
-  Map<String, Object?> toJson() => <String, Object?>{'swipeDownShade': swipeDownShade, 'doubleTapLock': doubleTapLock, 'pinchSettings': pinchSettings, 'badges': badges, 'searchWeb': searchWeb, 'searchContacts': searchContacts};
+  Map<String, Object?> toJson() => <String, Object?>{'swipeDownShade': swipeDownShade, 'doubleTapLock': doubleTapLock, 'pinchSettings': pinchSettings, 'badges': badges, 'searchWeb': searchWeb, 'searchContacts': searchContacts, if (theme != LauncherTheme.device) 'theme': theme.name};
 
   static LauncherOptions fromJson(Object? value) {
     if (value is! Map) return const LauncherOptions();
@@ -197,6 +202,7 @@ class const LauncherOptions({final bool swipeDownShade = true, final bool double
       badges: flag('badges', true),
       searchWeb: flag('searchWeb', true),
       searchContacts: flag('searchContacts', false),
+      theme: LauncherTheme.values.where((LauncherTheme each) => each.name == value['theme']).firstOrNull ?? LauncherTheme.device,
     );
   }
 }

@@ -23,9 +23,9 @@ ThemeData launcherTheme() {
     // Transparent, so the phone's wallpaper shows behind every screen.
     scaffoldBackgroundColor: const Color(0x00000000),
     canvasColor: const Color(0x00000000),
-    colorScheme: base.colorScheme.copyWith(primary: LauncherColors.accent, surface: LauncherColors.surface, onSurface: LauncherColors.text),
-    textSelectionTheme: const TextSelectionThemeData(cursorColor: LauncherColors.accent, selectionColor: Color(0x553FB950)),
-    textTheme: base.textTheme.apply(fontFamily: launcherFont, bodyColor: LauncherColors.text, displayColor: LauncherColors.text),
-    inputDecorationTheme: const InputDecorationTheme(border: InputBorder.none, labelStyle: TextStyle(color: LauncherColors.muted), hintStyle: TextStyle(color: LauncherColors.muted)),
+    colorScheme: base.colorScheme.copyWith(primary: WallpaperColors.accent, surface: WallpaperColors.surface, onSurface: WallpaperColors.text),
+    textSelectionTheme: const TextSelectionThemeData(cursorColor: WallpaperColors.accent, selectionColor: Color(0x553FB950)),
+    textTheme: base.textTheme.apply(fontFamily: launcherFont, bodyColor: WallpaperColors.text, displayColor: WallpaperColors.text),
+    inputDecorationTheme: const InputDecorationTheme(border: InputBorder.none, labelStyle: TextStyle(color: WallpaperColors.muted), hintStyle: TextStyle(color: WallpaperColors.muted)),
   );
 }

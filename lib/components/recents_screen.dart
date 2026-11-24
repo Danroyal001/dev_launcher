@@ -16,6 +16,7 @@ import 'theme.dart';
 
 @DVFunctionalWidget()
 Widget _recentsScreen(BuildContext context, {VoidCallback? onClose, VoidCallback? onSettings}) {
+  followLauncherTheme(context, LauncherStore.instance.current.layout.options);
   // Embedded in the home screen it is closed by the home screen; on its own
   // (/recents) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -45,7 +46,7 @@ Widget _recentsScreen(BuildContext context, {VoidCallback? onClose, VoidCallback
     if (problem.isEmpty) close();
   }
 
-  Widget link(String label, String hint, VoidCallback onTap, {Color color = LauncherColors.text}) =>
+  Widget link(String label, String hint, VoidCallback onTap, {Color? color}) =>
       DVText(label).modifier(mono(size: 14, color: color).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).tooltip(hint).onTap(onTap));
 
   // A card per app, as a phone's Recents draws them: the app's colour, its
@@ -77,7 +78,7 @@ Widget _recentsScreen(BuildContext context, {VoidCallback? onClose, VoidCallback
   ], spacing: 8, crossAlign: DVCrossAlign.center, modifier: DVModifier().paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8));
 
   final Widget list = DVBox.list(<Widget>[
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
     if (recent.isEmpty) DVText('No recent apps yet. Apps you open from Dev Launcher show here, newest first.').modifier(mono(size: 14, color: LauncherColors.muted)),
     if (recent.isNotEmpty)
       DVBox.horizontalScrollable(<Widget>[

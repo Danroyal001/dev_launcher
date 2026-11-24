@@ -46,10 +46,10 @@ Widget _badged(BuildContext context, {required Widget icon, required int count, 
 /// An app: tap opens it, long press offers the rest. [badge] is how many
 /// notifications it shows.
 @DVFunctionalWidget()
-Widget _appTile(BuildContext context, {required DVInstalledApp app, required VoidCallback onOpen, required VoidCallback onMore, double iconSize = 52, bool showLabel = true, int badge = 0}) =>
+Widget _appTile(BuildContext context, {required DVInstalledApp app, required VoidCallback onOpen, required VoidCallback onMore, double iconSize = 52, bool showLabel = true, int badge = 0, bool onWallpaper = false}) =>
     DVBox.list(<Widget>[
       Badged(icon: AppIcon(app: app, size: iconSize), count: badge, size: iconSize),
-      if (showLabel) DVText(app.label).modifier(mono(size: iconSize < 44 ? 11 : 13).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
+      if (showLabel) DVText(app.label).modifier(mono(size: iconSize < 44 ? 11 : 13, color: onWallpaper ? WallpaperColors.text : null).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
     ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(6).rounded(14).semanticLabel(badge > 0 ? '${app.label}, $badge ${badge == 1 ? 'notification' : 'notifications'}' : app.label).tooltip('Open ${app.label}').onTap(onOpen).onLongPress(onMore));
 
 /// A folder on the home screen: up to four of its apps' icons in a square,
@@ -60,12 +60,12 @@ Widget _folderTile(BuildContext context, {required LauncherFolder folder, requir
   final double mini = (iconSize - 14) / 2;
   final Widget square = DVBox(
     DVBox.grid(<Widget>[for (final DVInstalledApp app in apps.take(4)) AppIcon(app: app, size: mini)], columns: 2, spacing: 3, responsive: false),
-    DVModifier().width(iconSize).height(iconSize).padding(4).backgroundColor(const Color(0x66151B23)).border(Border.all(color: LauncherColors.rule)).rounded(iconSize * 0.28),
+    DVModifier().width(iconSize).height(iconSize).padding(4).backgroundColor(const Color(0x66151B23)).border(Border.all(color: WallpaperColors.rule)).rounded(iconSize * 0.28),
   );
   final int badge = snapshot.folderBadge(folder);
   return DVBox.list(<Widget>[
     Badged(icon: square, count: badge, size: iconSize),
-    DVText(folder.name).modifier(mono(size: iconSize < 44 ? 11 : 13).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
+    DVText(folder.name).modifier(mono(size: iconSize < 44 ? 11 : 13, color: WallpaperColors.text).maxLines(1).overflow(TextOverflow.ellipsis).align(Alignment.center)),
   ], spacing: 6, crossAlign: DVCrossAlign.center, modifier: DVModifier().padding(6).rounded(14).semanticLabel('Folder ${folder.name}, ${apps.length} apps${badge > 0 ? ', $badge notifications' : ''}').tooltip('Open folder ${folder.name}').onTap(onOpen).onLongPress(onOpen));
 }
 
@@ -100,7 +100,7 @@ Widget _appSheet(BuildContext context, {required DVInstalledApp app, required La
   final bool onHome = snapshot.layout.home.contains(app.packageName);
   final bool inDock = snapshot.dock.contains(app.packageName);
   final bool hidden = snapshot.layout.hidden.contains(app.packageName);
-  Widget action(String label, String hint, Future<String> Function() run, {Color color = LauncherColors.text}) => DVText(label).modifier(
+  Widget action(String label, String hint, Future<String> Function() run, {Color? color}) => DVText(label).modifier(
         mono(size: 15, color: color).paddingSymmetric(horizontal: 16, vertical: 14).minimumTapTarget(width: 48, height: 48).tooltip(hint).onTap(() async => onDone(await run())),
       );
   Future<String> system(Future<void> Function(String) call) async {
@@ -176,12 +176,12 @@ Widget _appSheet(BuildContext context, {required DVInstalledApp app, required La
 
 /// A labelled grid of apps.
 @DVFunctionalWidget()
-Widget _appSection(BuildContext context, {required String title, required List<DVInstalledApp> apps, required int columns, required ValueChanged<String> onOpen, required ValueChanged<String> onMore, double iconSize = 52, Map<String, int> badges = const <String, int>{}}) =>
+Widget _appSection(BuildContext context, {required String title, required List<DVInstalledApp> apps, required int columns, required ValueChanged<String> onOpen, required ValueChanged<String> onMore, double iconSize = 52, Map<String, int> badges = const <String, int>{}, bool onWallpaper = false}) =>
     DVBox.list(<Widget>[
-      DVText('// $title').modifier(mono(size: 13, color: LauncherColors.accent).semanticHeading(2)),
+      DVText('// $title').modifier(mono(size: 13, color: onWallpaper ? WallpaperColors.accent : LauncherColors.accent).semanticHeading(2)),
       if (apps.isNotEmpty)
         DVBox.grid(<Widget>[
-          for (final DVInstalledApp app in apps) AppTile(app: app, iconSize: iconSize, badge: badges[app.packageName] ?? 0, onOpen: () => onOpen(app.packageName), onMore: () => onMore(app.packageName)),
+          for (final DVInstalledApp app in apps) AppTile(app: app, iconSize: iconSize, badge: badges[app.packageName] ?? 0, onWallpaper: onWallpaper, onOpen: () => onOpen(app.packageName), onMore: () => onMore(app.packageName)),
         ], columns: columns, spacing: 4, responsive: false),
     ], spacing: 10);
 
@@ -210,7 +210,7 @@ Widget _homeGrid(BuildContext context, {required LauncherSnapshot snapshot, requ
       shown = FolderTile(folder: folder, snapshot: snapshot, iconSize: iconSize, onOpen: arranging ? () {} : () => onFolder(folder.id));
     } else {
       final DVInstalledApp app = snapshot.app(item)!;
-      shown = AppTile(app: app, iconSize: iconSize, badge: snapshot.badgeFor(item), onOpen: arranging ? () {} : () => onOpen(item), onMore: arranging ? () {} : () => onMore(item));
+      shown = AppTile(app: app, iconSize: iconSize, badge: snapshot.badgeFor(item), onWallpaper: true, onOpen: arranging ? () {} : () => onOpen(item), onMore: arranging ? () {} : () => onMore(item));
     }
     if (!arranging) return shown;
     final bool lifted = dragging.value == index;
@@ -218,7 +218,7 @@ Widget _homeGrid(BuildContext context, {required LauncherSnapshot snapshot, requ
       shown,
       DVModifier()
           .rounded(14)
-          .border(Border.all(color: lifted ? LauncherColors.accent : LauncherColors.rule))
+          .border(Border.all(color: lifted ? WallpaperColors.accent : WallpaperColors.rule))
           .offset(lifted ? moved.value.dx : 0, lifted ? moved.value.dy : 0)
           .onGesture(DVGesture(
             onStart: (ScaleStartDetails details) {
@@ -241,11 +241,11 @@ Widget _homeGrid(BuildContext context, {required LauncherSnapshot snapshot, requ
 
   return DVBox.list(<Widget>[
     DVBox.row(<Widget>[
-      DVBox(DVText('// home').modifier(mono(size: 13, color: LauncherColors.accent).semanticHeading(2)), DVModifier().fill()),
+      DVBox(DVText('// home').modifier(mono(size: 13, color: WallpaperColors.accent).semanticHeading(2)), DVModifier().fill()),
       if (arranging)
-        DVText('Done arranging').modifier(mono(size: 13, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(8).paddingSymmetric(horizontal: 12, vertical: 8).minimumTapTarget(width: 48, height: 48).tooltip('Keep this order').onTap(onDoneArranging)),
+        DVText('Done arranging').modifier(mono(size: 13, bold: true, color: WallpaperColors.page).backgroundColor(WallpaperColors.accent).rounded(8).paddingSymmetric(horizontal: 12, vertical: 8).minimumTapTarget(width: 48, height: 48).tooltip('Keep this order').onTap(onDoneArranging)),
     ], spacing: 8, crossAlign: DVCrossAlign.center),
-    if (arranging) DVText('Drag an app or folder to its new place.').modifier(mono(size: 12, color: LauncherColors.muted)),
+    if (arranging) DVText('Drag an app or folder to its new place.').modifier(mono(size: 12, color: WallpaperColors.text)),
     DVBox.grid(<Widget>[for (int index = 0; index < items.length; index++) tile(index, items[index])], columns: columns, spacing: spacing, responsive: false),
   ], spacing: 10);
 }
@@ -273,7 +273,7 @@ Widget _folderView(BuildContext context, {required LauncherFolder folder, requir
 /// What a search offers besides apps: the phone's settings pages that match,
 /// contacts (when chosen in the settings) and the web.
 @DVFunctionalWidget()
-Widget _searchExtras(BuildContext context, {required String query, required LauncherSnapshot snapshot, required ValueChanged<String> onDone}) {
+Widget _searchExtras(BuildContext context, {required String query, required LauncherSnapshot snapshot, required ValueChanged<String> onDone, bool onWallpaper = false}) {
   final DVSignal<List<LauncherContact>> contacts = context.signal(const <LauncherContact>[]);
   final DVSignal<bool> asked = context.signal(false);
   final String wanted = query.trim();
@@ -288,7 +288,7 @@ Widget _searchExtras(BuildContext context, {required String query, required Laun
   final List<DVSystemSettingsPage> pages = matchKeywords(DVSystemSettingsPage.values, wanted, (DVSystemSettingsPage page) => <String>[page.title, ...page.keywords]).take(4).toList();
   final List<LauncherContact> people = options.searchContacts ? matchContacts(contacts.value, wanted).take(4).toList() : const <LauncherContact>[];
   Widget row(String label, String hint, Future<String> Function() run) => DVText(label).modifier(
-        mono(size: 14).paddingSymmetric(horizontal: 12, vertical: 12).minimumTapTarget(width: 48, height: 48).backgroundColor(const Color(0xCC151B23)).rounded(10).maxLines(1).overflow(TextOverflow.ellipsis).tooltip(hint).onTap(() async => onDone(await run())),
+        mono(size: 14, color: onWallpaper ? WallpaperColors.text : null).paddingSymmetric(horizontal: 12, vertical: 12).minimumTapTarget(width: 48, height: 48).backgroundColor(onWallpaper ? WallpaperColors.panel : LauncherColors.surface).rounded(10).maxLines(1).overflow(TextOverflow.ellipsis).tooltip(hint).onTap(() async => onDone(await run())),
       );
   Future<String> attempt(Future<void> Function() call) async {
     try {
@@ -300,9 +300,9 @@ Widget _searchExtras(BuildContext context, {required String query, required Laun
   }
 
   return DVBox.list(<Widget>[
-    if (pages.isNotEmpty) DVText('settings').modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
+    if (pages.isNotEmpty) DVText('settings').modifier(mono(size: 13, bold: true, color: onWallpaper ? WallpaperColors.accent : LauncherColors.accent).semanticHeading(2)),
     for (final DVSystemSettingsPage page in pages) row('${page.title} settings', 'Open ${page.title} in the phone\'s settings', () => attempt(() => DV.Platform.apps.openSystemSettings(page))),
-    if (people.isNotEmpty) DVText('contacts').modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
+    if (people.isNotEmpty) DVText('contacts').modifier(mono(size: 13, bold: true, color: onWallpaper ? WallpaperColors.accent : LauncherColors.accent).semanticHeading(2)),
     for (final LauncherContact person in people) row('${person.name} · ${person.phone}', 'Call ${person.name} (opens the dialer)', () => attempt(() async => DVLinkOpener.open('tel:${person.phone.replaceAll(' ', '')}'))),
     if (options.searchWeb) row('Search the web for "$wanted"', 'Open the browser on a search for $wanted', () => attempt(() async => DVLinkOpener.open(webSearchUrl(wanted)))),
   ], spacing: 6);

@@ -32,7 +32,7 @@ String deviceLocale() => WidgetsBinding.instance.platformDispatcher.locale.toStr
 @DVFunctionalWidget()
 Widget _recentsButtonIcon(BuildContext context, {required RecentsGlyph glyph, double size = 22}) {
   final double thick = (size / 9).clamp(2.0, 4.0);
-  final Widget bar = DVText('').modifier(glyph == RecentsGlyph.lines ? DVModifier().width(size * 0.82).height(thick).backgroundColor(LauncherColors.text).rounded(thick) : DVModifier().width(thick).height(size * 0.72).backgroundColor(LauncherColors.text).rounded(thick));
+  final Widget bar = DVText('').modifier(glyph == RecentsGlyph.lines ? DVModifier().width(size * 0.82).height(thick).backgroundColor(WallpaperColors.text).rounded(thick) : DVModifier().width(thick).height(size * 0.72).backgroundColor(WallpaperColors.text).rounded(thick));
   final Widget bars = glyph == RecentsGlyph.lines
       ? DVBox.list(<Widget>[bar, bar, bar], spacing: size * 0.18, crossAlign: DVCrossAlign.center)
       : DVBox.row(<Widget>[bar, bar, bar], spacing: size * 0.2, crossAlign: DVCrossAlign.center);
@@ -44,7 +44,7 @@ Widget _recentsButtonIcon(BuildContext context, {required RecentsGlyph glyph, do
 @DVFunctionalWidget()
 Widget _appsButtonIcon(BuildContext context, {double size = 22}) {
   final double dot = size / 5;
-  final Widget row = DVBox.row(<Widget>[for (int column = 0; column < 3; column++) DVText('').modifier(DVModifier().width(dot).height(dot).backgroundColor(LauncherColors.text).rounded(dot / 2))], spacing: dot, crossAlign: DVCrossAlign.center);
+  final Widget row = DVBox.row(<Widget>[for (int column = 0; column < 3; column++) DVText('').modifier(DVModifier().width(dot).height(dot).backgroundColor(WallpaperColors.text).rounded(dot / 2))], spacing: dot, crossAlign: DVCrossAlign.center);
   return DVBox(DVBox(DVBox.list(<Widget>[row, row, row], spacing: dot, crossAlign: DVCrossAlign.center), DVModifier().width(size).height(size).align(Alignment.center)), DVModifier().align(Alignment.center));
 }
 
@@ -251,6 +251,7 @@ Widget _launcherHome(BuildContext context) {
   final ScreenKind kind = screenKindFor(width: size.width, height: size.height);
   final bool watch = kind == ScreenKind.watch;
   launcherTextScale = kind == ScreenKind.tv ? 1.5 : 1;
+  followLauncherTheme(context, current.layout.options);
   final double side = watch ? roundSafeInset(size.shortestSide) : (kind == ScreenKind.tv ? 56 : 20);
   final int columns = gridColumns(kind, size.width - side * 2);
   final double iconSize = switch (kind) { ScreenKind.watch => 40, ScreenKind.phone => 52, ScreenKind.tablet => 60, ScreenKind.tv => 72 };
@@ -352,28 +353,28 @@ Widget _launcherHome(BuildContext context) {
 
   final Widget content = DVBox.list(<Widget>[
     if (current.preview)
-      DVText('Preview: Dev Launcher is an Android home screen. Here it shows example apps.').modifier(mono(size: 13, color: LauncherColors.muted).backgroundColor(LauncherColors.surface).rounded(10).padding(12)),
+      DVText('Preview: Dev Launcher is an Android home screen. Here it shows example apps.').modifier(wallMono(size: 13, color: WallpaperColors.muted).backgroundColor(WallpaperColors.surface).rounded(10).padding(12)),
     DVBox.list(<Widget>[
-      DVText(clock).modifier(mono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, $clock').align(watch ? Alignment.center : Alignment.centerLeft)),
-      DVText(watch ? date : '$date · ${current.apps.length} apps').modifier(mono(size: watch ? 12 : 15, color: LauncherColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
+      DVText(clock).modifier(wallMono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, $clock').align(watch ? Alignment.center : Alignment.centerLeft)),
+      DVText(watch ? date : '$date · ${current.apps.length} apps').modifier(wallMono(size: watch ? 12 : 15, color: WallpaperColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
     ], spacing: 6, modifier: DVModifier().onDoubleTap(lockScreen).onLongPress(() => show('launcher-settings')).tooltip('Double-tap to lock the screen; long-press for launcher settings')),
     if (!current.isDefault && !current.preview)
       DVBox.list(<Widget>[
-        DVText('Dev Launcher is not your home app yet.').modifier(mono(size: 14)),
+        DVText('Dev Launcher is not your home app yet.').modifier(wallMono(size: 14)),
         DVText('Make it my home app').modifier(
-          mono(size: 14, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(10).paddingSymmetric(horizontal: 16, vertical: 12).minimumTapTarget(width: 48, height: 48).tooltip('Ask Android to make Dev Launcher the home app').onTap(() async {
+          wallMono(size: 14, bold: true, color: WallpaperColors.page).backgroundColor(WallpaperColors.accent).rounded(10).paddingSymmetric(horizontal: 16, vertical: 12).minimumTapTarget(width: 48, height: 48).tooltip('Ask Android to make Dev Launcher the home app').onTap(() async {
             status.value = await store.askToBeDefault();
           }),
         ),
-      ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.accent)).rounded(14).padding(14)),
+      ], spacing: 10, crossAlign: DVCrossAlign.start, modifier: DVModifier().backgroundColor(WallpaperColors.surface).border(Border.all(color: WallpaperColors.accent)).rounded(14).padding(14)),
     if (!watch)
       DVBox.row(<Widget>[
-        DVText('❯').modifier(mono(size: 18, bold: true, color: LauncherColors.accent)),
+        DVText('❯').modifier(wallMono(size: 18, bold: true, color: WallpaperColors.accent)),
         DVText(query).modifier(
           // No floating label: it reserves a line above the text, which pushed
           // the typed text below the prompt sign. The hint says it in the field
           // and the semantic label names it for a screen reader.
-          mono(size: 16).semanticLabel('Command').input(
+          wallMono(size: 16).semanticLabel('Command').input(
             hint: 'type an app or a command',
             onChanged: (String value) {
               typed.value = value;
@@ -382,22 +383,22 @@ Widget _launcherHome(BuildContext context) {
             onSubmitted: submit,
           ),
         ),
-      ], spacing: 10, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
+      ], spacing: 10, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: WallpaperColors.rule)).rounded(12).paddingSymmetric(horizontal: 14, vertical: 4).maxWidth(720)),
     // Why the apps could not be read, rather than an empty screen that only
     // says to long-press an app.
-    if (current.problem.isNotEmpty) DVText(current.problem).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (current.problem.isNotEmpty) DVText(current.problem).modifier(wallMono(size: 13, color: WallpaperColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(wallMono(size: 13, color: WallpaperColors.text).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
     if (newerRelease != null && !watch)
       DVText('Dev Launcher ${newerRelease.version} is out · tap to download').modifier(
-        mono(size: 13, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(10).paddingSymmetric(horizontal: 14, vertical: 12).minimumTapTarget(width: 48, height: 48)
+        wallMono(size: 13, bold: true, color: WallpaperColors.page).backgroundColor(WallpaperColors.accent).rounded(10).paddingSymmetric(horizontal: 14, vertical: 12).minimumTapTarget(width: 48, height: 48)
             .semanticLabel('Dev Launcher ${newerRelease.version} is out. This phone has $launcherVersion. Open updates')
             .tooltip('See what is new and download it')
             .onTap(() => show('updates')),
       ),
     if (query.trim().isNotEmpty) ...<Widget>[
-      AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
-      if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app, or settings.').modifier(mono(size: 13, color: LauncherColors.muted)),
-      SearchExtras(query: search, snapshot: current, onDone: (String problem) {
+      AppSection(title: 'matches', onWallpaper: true, apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
+      if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app, or settings.').modifier(wallMono(size: 13, color: WallpaperColors.muted)),
+      SearchExtras(query: search, snapshot: current, onWallpaper: true, onDone: (String problem) {
         status.value = problem;
         if (problem.isEmpty) typed.value = '';
       }),
@@ -421,8 +422,8 @@ Widget _launcherHome(BuildContext context) {
         },
       )
     else if (!current.loading && !watch)
-      DVText('Long-press any app to put it here or in the dock.').modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
-    if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
+      DVText('Long-press any app to put it here or in the dock.').modifier(wallMono(size: 13, color: WallpaperColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
+    if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', onWallpaper: true, apps: devTools, columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
     if (watch) DVBox(appsButton, DVModifier().centered()),
   // Scrolls when it is taller than the room above the dock (a small phone,
   // large text, many apps on home): nothing is cut off out of reach.
@@ -538,5 +539,5 @@ Widget _launcherHome(BuildContext context) {
         ),
         DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
       ),
-  ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).clipContent()), DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0x00000000)));
+  ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).clipContent()), DVModifier().backgroundColor(current.preview ? WallpaperColors.page : const Color(0x00000000)));
 }

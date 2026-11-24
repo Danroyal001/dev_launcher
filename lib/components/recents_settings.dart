@@ -19,6 +19,7 @@ import 'theme.dart';
 
 @DVFunctionalWidget()
 Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
+  followLauncherTheme(context, LauncherStore.instance.current.layout.options);
   void close() => onClose != null ? onClose() : DV.Navigation.back();
   final SignalLog log = SignalLog.instance;
   final DVSignal<List<DVHomeAppSignal>> signals = context.signal(log.signals);
@@ -64,14 +65,14 @@ Widget _recentsSettings(BuildContext context, {VoidCallback? onClose}) {
   final int first = heard.where((DVHomeAppSignal signal) => signal.at != 0).firstOrNull?.at ?? 0;
   bool arrived(String name, [String? detail]) => heard.any((DVHomeAppSignal signal) => signal.name == name && (detail == null || signal.detail == detail));
 
-  Widget link(String label, String hint, VoidCallback onTap, {Color color = LauncherColors.text, bool filled = false}) => DVText(label).modifier(
+  Widget link(String label, String hint, VoidCallback onTap, {Color? color, bool filled = false}) => DVText(label).modifier(
         (filled ? mono(size: 14, bold: true, color: LauncherColors.page).backgroundColor(LauncherColors.accent).rounded(10).paddingSymmetric(horizontal: 16, vertical: 12) : mono(size: 14, color: color).paddingSymmetric(horizontal: 8, vertical: 10))
             .minimumTapTarget(width: 48, height: 48)
             .tooltip(hint)
             .onTap(onTap),
       );
   Widget heading(String text) => DVText('// $text').modifier(mono(size: 13, color: LauncherColors.accent).semanticHeading(2));
-  Widget say(String text, {Color color = LauncherColors.text}) => DVText(text).modifier(mono(size: 13, color: color));
+  Widget say(String text, {Color? color}) => DVText(text).modifier(mono(size: 13, color: color));
   Widget check(String label, bool yes) => say('${yes ? '✓' : '·'} $label: ${yes ? 'arrived' : 'not seen yet'}', color: yes ? LauncherColors.accent : LauncherColors.muted);
 
   final bool? on = serviceOn.value;
