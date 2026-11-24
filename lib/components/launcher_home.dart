@@ -14,6 +14,7 @@ import 'app_drawer.dart';
 import '../services/signal_log.dart';
 import '../services/updates.dart';
 import 'app_tiles.dart';
+import 'launcher_settings.dart';
 import 'recents_screen.dart';
 import 'recents_settings.dart';
 import 'theme.dart';
@@ -87,12 +88,21 @@ Widget _launcherHome(BuildContext context) {
   double screenHeight() => MediaQuery.sizeOf(context).height;
   double topNow() => drawerTop.read() ?? screenHeight();
   // What is over the home screen besides the drawer: nothing, Dev Launcher's
-  // Recents ('recents'), or the Recents button settings ('settings').
+  // Recents ('recents'), the Recents button settings ('settings'), the
+  // launcher settings ('launcher-settings') or an open folder ('folder:<id>').
   final DVSignal<String> overlay = context.signal('');
+  // Where the Recents button settings were opened from: Back returns there.
+  final DVSignal<String> settingsFrom = context.signal('recents');
+  // Dragging the home screen's tiles into a new order.
+  final DVSignal<bool> arranging = context.signal(false);
+  // The folder an app's menu was opened in, if any.
+  final DVSignal<String> sheetFolder = context.signal('');
+  // The smallest scale a two-finger pinch reached.
+  final DVSignal<double> pinch = context.signal(1.0);
 
   // Back stops being Dev Launcher's once nothing is open.
   void releaseBackWhenIdle() {
-    if (overlay.read().isNotEmpty || topNow() < screenHeight()) return;
+    if (overlay.read().isNotEmpty || arranging.read() || topNow() < screenHeight()) return;
     stopBack.read()?.call();
     stopBack.value = null;
   }
@@ -110,9 +120,15 @@ Widget _launcherHome(BuildContext context) {
   // gesture area at the bottom of the screen can swallow it).
   void claimBack() {
     stopBack.value ??= DV.Navigation.onBack(() {
+      // A home screen that is gone (rebuilt from scratch) answers nothing.
+      if (!context.mounted) return false;
       if (overlay.read() == 'settings') {
         SignalLog.instance.note('backHandled', 'Recents settings');
-        show('recents');
+        show(settingsFrom.read());
+      } else if (arranging.read() && overlay.read().isEmpty) {
+        SignalLog.instance.note('backHandled', 'arranging');
+        arranging.value = false;
+        releaseBackWhenIdle();
       } else if (overlay.read().isNotEmpty) {
         SignalLog.instance.note('backHandled', 'Recents');
         show('');
@@ -195,8 +211,10 @@ Widget _launcherHome(BuildContext context) {
           return;
         }
         closeDrawer();
+        arranging.value = false;
         show('');
         selected.value = '';
+        sheetFolder.value = '';
         status.value = '';
       });
       // The phone's Recents button, wherever Dev Launcher hears it: the
@@ -273,7 +291,12 @@ Widget _launcherHome(BuildContext context) {
   }
 
   void submit() {
-    final LauncherCommand command = parseCommand(typed.read(), current.launcherApps);
+    if (typed.read().trim().toLowerCase() == 'settings') {
+      typed.value = '';
+      show('launcher-settings');
+      return;
+    }
+    final LauncherCommand command = parseCommand(typed.read(), current.visibleLauncherApps);
     if (command.action == LauncherAction.none) {
       status.value = command.message;
       return;
@@ -284,8 +307,26 @@ Widget _launcherHome(BuildContext context) {
   final String query = typed.value;
   final List<String> words = query.trim().split(' ');
   final String search = words.length > 1 && commandWords.contains(words.first.toLowerCase()) ? query.substring(query.indexOf(' ') + 1) : query;
-  final List<DVInstalledApp> matches = installedFor(current, matchApps(current.launcherApps, search));
-  final List<DVInstalledApp> home = current.appsFor(current.layout.home);
+  final List<DVInstalledApp> matches = installedFor(current, matchApps(current.visibleLauncherApps, search));
+  // The home screen's items still there: apps installed, folders that exist.
+  final bool hasHome = current.layout.home.any((String item) => item.startsWith(folderPrefix) ? current.layout.folder(item.substring(folderPrefix.length)) != null : current.app(item) != null);
+  final Map<String, int> badges = current.layout.options.badges ? current.badges : const <String, int>{};
+  final LauncherFolder? openFolder = overlay.value.startsWith(folderPrefix) ? current.layout.folder(overlay.value.substring(folderPrefix.length)) : null;
+
+  // A double tap on the clock: the screen locks, through the opt-in
+  // accessibility service; while it is off the person is told where it is.
+  Future<void> lockScreen() async {
+    if (!current.layout.options.doubleTapLock) return;
+    if (await DV.Platform.apps.lockScreen()) return;
+    status.value = 'To lock with a double tap, turn on "Dev Launcher Recents" under Accessibility (launcher settings, gestures).';
+  }
+
+  // A swipe down: the notification shade, as on every launcher.
+  Future<void> pullShade() async {
+    if (!current.layout.options.swipeDownShade || current.preview) return;
+    if (!await DV.Platform.apps.expandNotifications()) status.value = 'This phone did not let Dev Launcher pull the notifications down.';
+  }
+
   final List<DVInstalledApp> devTools = current.apps.where((DVInstalledApp app) => isDevTool(app.packageName)).toList();
   final List<DVInstalledApp> dock = current.appsFor(current.dock);
   final DVInstalledApp? sheetApp = selected.value.isEmpty ? null : current.app(selected.value);
@@ -315,7 +356,7 @@ Widget _launcherHome(BuildContext context) {
     DVBox.list(<Widget>[
       DVText(clock).modifier(mono(size: clockSize, bold: true).lineHeight(1).semanticHeading(1).semanticLabel('Dev Launcher, $clock').align(watch ? Alignment.center : Alignment.centerLeft)),
       DVText(watch ? date : '$date · ${current.apps.length} apps').modifier(mono(size: watch ? 12 : 15, color: LauncherColors.text).align(watch ? Alignment.center : Alignment.centerLeft)),
-    ], spacing: 6),
+    ], spacing: 6, modifier: DVModifier().onDoubleTap(lockScreen).onLongPress(() => show('launcher-settings')).tooltip('Double-tap to lock the screen; long-press for launcher settings')),
     if (!current.isDefault && !current.preview)
       DVBox.list(<Widget>[
         DVText('Dev Launcher is not your home app yet.').modifier(mono(size: 14)),
@@ -354,14 +395,34 @@ Widget _launcherHome(BuildContext context) {
             .onTap(() => show('updates')),
       ),
     if (query.trim().isNotEmpty) ...<Widget>[
-      AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
-      if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app.').modifier(mono(size: 13, color: LauncherColors.muted)),
+      AppSection(title: 'matches', apps: matches.take(columns * 2).toList(), columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
+      if (matches.isEmpty) DVText('Enter runs it. Try: info, pin, unpin, uninstall + an app, or settings.').modifier(mono(size: 13, color: LauncherColors.muted)),
+      SearchExtras(query: search, snapshot: current, onDone: (String problem) {
+        status.value = problem;
+        if (problem.isEmpty) typed.value = '';
+      }),
     ],
-    if (home.isNotEmpty)
-      AppSection(title: 'home', apps: home, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package)
+    if (hasHome)
+      HomeGrid(
+        snapshot: current,
+        columns: columns,
+        width: (size.width - side * 2).clamp(0, 720).toDouble(),
+        iconSize: iconSize,
+        arranging: arranging.value,
+        onOpen: open,
+        onMore: (String package) {
+          sheetFolder.value = '';
+          selected.value = package;
+        },
+        onFolder: (String id) => show('$folderPrefix$id'),
+        onDoneArranging: () {
+          arranging.value = false;
+          releaseBackWhenIdle();
+        },
+      )
     else if (!current.loading && !watch)
       DVText('Long-press any app to put it here or in the dock.').modifier(mono(size: 13, color: LauncherColors.text).backgroundColor(const Color(0x99151B23)).rounded(8).padding(10)),
-    if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, onOpen: open, onMore: (String package) => selected.value = package),
+    if (devTools.isNotEmpty && !watch) AppSection(title: 'dev tools', apps: devTools, columns: columns, iconSize: iconSize, badges: badges, onOpen: open, onMore: (String package) => selected.value = package),
     if (watch) DVBox(appsButton, DVModifier().centered()),
   // Scrolls when it is taller than the room above the dock (a small phone,
   // large text, many apps on home): nothing is cut off out of reach.
@@ -374,9 +435,9 @@ Widget _launcherHome(BuildContext context) {
   Widget slot(Widget item) => DVBox(item, DVModifier().width(dockSlot).height(dockSlot).align(Alignment.center));
   final Widget dockRow = DVBox.row(<Widget>[
     if (recentsFirst) slot(recentsButton),
-    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
+    for (final DVInstalledApp app in dock.take(dock.length > 2 ? 2 : dock.length)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
     slot(appsButton),
-    for (final DVInstalledApp app in dock.skip(2)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
+    for (final DVInstalledApp app in dock.skip(2)) slot(AppTile(app: app, iconSize: dockIcon, showLabel: false, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => selected.value = app.packageName)),
     if (!recentsFirst) slot(recentsButton),
   ], spacing: 0, align: DVAlign.spaceEvenly, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0x40FFFFFF)).rounded(28).paddingSymmetric(horizontal: 4, vertical: 6).maxWidth(kind == ScreenKind.phone ? double.infinity : 640));
 
@@ -388,7 +449,10 @@ Widget _launcherHome(BuildContext context) {
   ));
   final double top = drawerTop.value ?? size.height;
   final Widget drawer = DVBox(
-    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer, onUpdates: () {
+    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer, onSettings: () {
+      show('launcher-settings');
+      closeDrawer();
+    }, onUpdates: () {
       // Updates first, so closing the drawer keeps Back for it.
       show('updates');
       closeDrawer();
@@ -408,19 +472,70 @@ Widget _launcherHome(BuildContext context) {
       // The content takes whatever the dock leaves: no height worked out by
       // hand. The page shell's SafeArea keeps both clear of the status and
       // navigation bars (owner, 21 Nov: a hand-made 85 left a 40 dp gap).
-      DVBox(content, DVModifier().fill().clipContent().onSwipeLeft(() => show('recents'))),
+      DVBox(content, DVModifier().fill().clipContent().onSwipeLeft(() => show('recents')).onSwipeDown(pullShade).onGesture(DVGesture(
+        onStart: (ScaleStartDetails details) => pinch.value = 1,
+        onUpdate: (ScaleUpdateDetails details) {
+          if (details.pointerCount >= 2 && details.scale < pinch.read()) pinch.value = details.scale;
+        },
+        onEnd: (ScaleEndDetails details) {
+          if (pinch.read() < 0.8 && current.layout.options.pinchSettings) show('launcher-settings');
+          pinch.value = 1;
+        },
+      ))),
       if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 8).centered().merge(dragUp)),
     ], spacing: 0, modifier: DVModifier().height(size.height)),
     drawer,
-    if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () => show('settings')),
+    if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () {
+      settingsFrom.value = 'recents';
+      show('settings');
+    }),
     if (overlay.value == 'settings') RecentsSettings(onClose: () => show('recents')),
     if (overlay.value == 'updates') UpdatesScreen(onClose: () => show('')),
+    if (overlay.value == 'launcher-settings')
+      LauncherSettings(
+        onClose: () => show(''),
+        onRecentsSettings: () {
+          settingsFrom.value = 'launcher-settings';
+          show('settings');
+        },
+        onUpdates: () => show('updates'),
+      ),
+    if (openFolder != null)
+      DVBox(
+        FolderView(
+          folder: openFolder,
+          snapshot: current,
+          columns: columns,
+          iconSize: iconSize,
+          onOpen: (String package) {
+            show('');
+            open(package);
+          },
+          onMore: (String package) {
+            sheetFolder.value = openFolder.id;
+            selected.value = package;
+          },
+          onClose: () => show(''),
+        ),
+        DVModifier().align(Alignment.center).padding(16),
+      ),
     if (sheetApp != null)
       DVBox(
-        AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
-          status.value = problem;
-          selected.value = '';
-        }),
+        AppSheet(
+          app: sheetApp,
+          snapshot: current,
+          folderId: sheetFolder.value,
+          onArrange: () {
+            show('');
+            arranging.value = true;
+            claimBack();
+          },
+          onDone: (String problem) {
+            status.value = problem;
+            selected.value = '';
+            sheetFolder.value = '';
+          },
+        ),
         DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
       ),
   ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).clipContent()), DVModifier().backgroundColor(current.preview ? LauncherColors.page : const Color(0x00000000)));

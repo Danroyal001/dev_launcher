@@ -18,7 +18,7 @@ import 'launcher_home.dart' show deviceLocale, followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
-Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates}) {
+Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates, VoidCallback? onSettings}) {
   // Embedded in the home screen, the drawer is closed by the home screen;
   // on its own (/apps) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -80,7 +80,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   void more(String package) => selected.value = package;
 
   final String query = search.value.trim();
-  final List<LauncherApp> shown = query.isEmpty ? current.launcherApps : matchApps(current.launcherApps, query);
+  final List<LauncherApp> shown = query.isEmpty ? current.visibleLauncherApps : matchApps(current.visibleLauncherApps, query);
   final List<LetterSection> sections = letterSections(shown);
   final Map<String, int> appsPerLetter = <String, int>{for (final LetterSection section in sections) section.letter: section.apps.length};
   // Not on a watch, and not before the screen has a height (the first frame
@@ -160,10 +160,11 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     // header stays one line on the smallest phone with the largest font.
     // Updates on the left, the drawer's settings on the right, one line.
     if (!watch)
-      DVBox.row(<Widget>[
+      DVBox.wrapLine(<Widget>[
         DVText('updates · $launcherVersion').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Updates: this phone has Dev Launcher $launcherVersion').tooltip('Which version this phone has, and the newest one to download').onTap(() => onUpdates != null ? onUpdates() : DV.Navigation.navigate(DVRoutes.updates))),
+        if (onSettings != null) DVText('settings').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Launcher settings').tooltip('Launcher settings: gestures, badges, hidden apps, wallpaper, backup').onTap(onSettings)),
         settingsLink,
-      ], spacing: 0, align: DVAlign.spaceBetween, crossAlign: DVCrossAlign.center),
+      ], spacing: 0),
     if (settingsOpen.value && !watch) drawerSettings,
     // The apps opened last, newest first: one row, above the A-Z list, as
     // phone launchers put their suggestions. Hidden while searching, where it
@@ -172,7 +173,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
       DVBox.list(<Widget>[
         DVText('recent').modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
         DVBox.grid(<Widget>[
-          for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
+          for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
         ], columns: columns, spacing: 4, responsive: false),
       ], spacing: 8),
     if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
@@ -185,10 +186,12 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
         child: DVBox.list(<Widget>[
           DVText(section.letter).modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
           DVBox.grid(<Widget>[
-            for (final DVInstalledApp app in installedFor(current, section.apps)) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
+            for (final DVInstalledApp app in installedFor(current, section.apps)) AppTile(app: app, iconSize: iconSize, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
           ], columns: columns, spacing: 4, responsive: false),
         ], spacing: 8),
       ),
+    if (query.isNotEmpty && !watch)
+      SearchExtras(query: query, snapshot: current, onDone: (String problem) => status.value = problem),
   ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 12)).scrollable();
 
   // The letter index: # and A to Z down the right edge, each letter one cell
