@@ -160,17 +160,82 @@ List<String> defaultDock(List<String> installed) {
   ];
 }
 
-/// What the person arranged: apps on the home screen, apps in the dock.
-class const LauncherLayout({final List<String> home = const <String>[], final List<String> dock = const <String>[], final bool dockChosen = true, final RecentsSide recentsSide = RecentsSide.device, final IndexSide indexSide = IndexSide.device}) {
-  String encode() => jsonEncode(<String, Object?>{'home': home, 'dock': dock, if (recentsSide != RecentsSide.device) 'recentsSide': recentsSide.name, if (indexSide != IndexSide.device) 'indexSide': indexSide.name});
+/// A folder on the home screen: a name and the apps in it, in order.
+class const LauncherFolder({required final String id, required final String name, final List<String> apps = const <String>[]}) {
+  /// How the folder is named in the home screen's list of items.
+  String get homeItem => '$folderPrefix$id';
 
-  LauncherLayout copyWith({List<String>? home, List<String>? dock, bool? dockChosen, RecentsSide? recentsSide, IndexSide? indexSide}) => LauncherLayout(
+  LauncherFolder copyWith({String? name, List<String>? apps}) => LauncherFolder(id: id, name: name ?? this.name, apps: apps ?? this.apps);
+
+  Map<String, Object?> toJson() => <String, Object?>{'id': id, 'name': name, 'apps': apps};
+}
+
+/// What a home-screen item naming a folder starts with: `folder:<id>`.
+const String folderPrefix = 'folder:';
+
+/// The launcher's own settings. Every standard launcher's gestures are on by
+/// default; reading contacts asks for a permission, so it waits to be chosen.
+class const LauncherOptions({final bool swipeDownShade = true, final bool doubleTapLock = true, final bool pinchSettings = true, final bool badges = true, final bool searchWeb = true, final bool searchContacts = false}) {
+  LauncherOptions copyWith({bool? swipeDownShade, bool? doubleTapLock, bool? pinchSettings, bool? badges, bool? searchWeb, bool? searchContacts}) => LauncherOptions(
+        swipeDownShade: swipeDownShade ?? this.swipeDownShade,
+        doubleTapLock: doubleTapLock ?? this.doubleTapLock,
+        pinchSettings: pinchSettings ?? this.pinchSettings,
+        badges: badges ?? this.badges,
+        searchWeb: searchWeb ?? this.searchWeb,
+        searchContacts: searchContacts ?? this.searchContacts,
+      );
+
+  Map<String, Object?> toJson() => <String, Object?>{'swipeDownShade': swipeDownShade, 'doubleTapLock': doubleTapLock, 'pinchSettings': pinchSettings, 'badges': badges, 'searchWeb': searchWeb, 'searchContacts': searchContacts};
+
+  static LauncherOptions fromJson(Object? value) {
+    if (value is! Map) return const LauncherOptions();
+    bool flag(String name, bool fallback) => value[name] is bool ? value[name] as bool : fallback;
+    return LauncherOptions(
+      swipeDownShade: flag('swipeDownShade', true),
+      doubleTapLock: flag('doubleTapLock', true),
+      pinchSettings: flag('pinchSettings', true),
+      badges: flag('badges', true),
+      searchWeb: flag('searchWeb', true),
+      searchContacts: flag('searchContacts', false),
+    );
+  }
+}
+
+/// What the person arranged: apps and folders on the home screen, apps in the
+/// dock, apps hidden from the drawer, and the launcher's settings.
+class const LauncherLayout({
+  final List<String> home = const <String>[],
+  final List<String> dock = const <String>[],
+  final bool dockChosen = true,
+  final RecentsSide recentsSide = RecentsSide.device,
+  final IndexSide indexSide = IndexSide.device,
+  final List<String> hidden = const <String>[],
+  final List<LauncherFolder> folders = const <LauncherFolder>[],
+  final LauncherOptions options = const LauncherOptions(),
+}) {
+  String encode() => jsonEncode(<String, Object?>{
+        'home': home,
+        'dock': dock,
+        if (recentsSide != RecentsSide.device) 'recentsSide': recentsSide.name,
+        if (indexSide != IndexSide.device) 'indexSide': indexSide.name,
+        if (hidden.isNotEmpty) 'hidden': hidden,
+        if (folders.isNotEmpty) 'folders': <Object?>[for (final LauncherFolder folder in folders) folder.toJson()],
+        'options': options.toJson(),
+      });
+
+  LauncherLayout copyWith({List<String>? home, List<String>? dock, bool? dockChosen, RecentsSide? recentsSide, IndexSide? indexSide, List<String>? hidden, List<LauncherFolder>? folders, LauncherOptions? options}) => LauncherLayout(
         home: home ?? this.home,
         dock: dock ?? this.dock,
         dockChosen: dockChosen ?? this.dockChosen,
         recentsSide: recentsSide ?? this.recentsSide,
         indexSide: indexSide ?? this.indexSide,
+        hidden: hidden ?? this.hidden,
+        folders: folders ?? this.folders,
+        options: options ?? this.options,
       );
+
+  /// The folder [id], or null.
+  LauncherFolder? folder(String id) => folders.where((LauncherFolder each) => each.id == id).firstOrNull;
 
   /// Reads [encode]'s shape, and the first version's plain list of pins.
   static LauncherLayout decode(String text) {
@@ -179,12 +244,22 @@ class const LauncherLayout({final List<String> home = const <String>[], final Li
       if (decoded is List) return LauncherLayout(home: <String>[for (final Object? item in decoded) '$item'], dockChosen: false);
       if (decoded is Map) {
         List<String> listOf(Object? value) => value is List ? <String>[for (final Object? item in value) '$item'] : <String>[];
+        final List<LauncherFolder> folders = <LauncherFolder>[
+          if (decoded['folders'] case final List<Object?> list)
+            for (final Object? item in list)
+              if (item is Map && '${item['id'] ?? ''}'.isNotEmpty) LauncherFolder(id: '${item['id']}', name: '${item['name'] ?? 'Folder'}', apps: listOf(item['apps'])),
+        ];
+        final Set<String> folderItems = <String>{for (final LauncherFolder folder in folders) folder.homeItem};
         return LauncherLayout(
-          home: listOf(decoded['home']),
+          // A folder named on home with nothing behind it would be a blank tile.
+          home: <String>[for (final String item in listOf(decoded['home'])) if (!item.startsWith(folderPrefix) || folderItems.contains(item)) item],
           dock: listOf(decoded['dock']),
           dockChosen: decoded['dock'] is List,
           recentsSide: RecentsSide.values.where((RecentsSide side) => side.name == decoded['recentsSide']).firstOrNull ?? RecentsSide.device,
           indexSide: IndexSide.values.where((IndexSide side) => side.name == decoded['indexSide']).firstOrNull ?? IndexSide.device,
+          hidden: listOf(decoded['hidden']),
+          folders: folders,
+          options: LauncherOptions.fromJson(decoded['options']),
         );
       }
     } on FormatException {
@@ -192,6 +267,146 @@ class const LauncherLayout({final List<String> home = const <String>[], final Li
     }
     return const LauncherLayout(dockChosen: false);
   }
+}
+
+/// [layout] with [package] in a folder: [folderId]'s, else a new folder
+/// called [folderName] that takes the app's place on the home screen (or goes
+/// at its end). The app leaves the home screen and every other folder.
+LauncherLayout addToFolder(LauncherLayout layout, String package, {String? folderId, String folderName = 'Folder'}) {
+  final LauncherFolder? existing = folderId == null ? null : layout.folder(folderId);
+  final String id = existing?.id ?? _newFolderId(layout);
+  final List<LauncherFolder> folders = <LauncherFolder>[
+    for (final LauncherFolder folder in layout.folders)
+      if (folder.id == id) folder.copyWith(apps: <String>[...folder.apps.where((String app) => app != package), package]) else folder.copyWith(apps: folder.apps.where((String app) => app != package).toList()),
+    if (existing == null) LauncherFolder(id: id, name: folderName.trim().isEmpty ? 'Folder' : folderName.trim(), apps: <String>[package]),
+  ];
+  final int at = layout.home.indexOf(package);
+  final List<String> home = <String>[for (final String item in layout.home) if (item != package) item];
+  if (existing == null) home.insert(at < 0 ? home.length : at, '$folderPrefix$id');
+  return _tidyFolders(layout.copyWith(home: home, folders: folders), keep: id);
+}
+
+/// [layout] with [package] out of folder [folderId]. A folder left with one
+/// app gives it back to the home screen in the folder's place.
+LauncherLayout removeFromFolder(LauncherLayout layout, String folderId, String package) => _tidyFolders(layout.copyWith(folders: <LauncherFolder>[
+      for (final LauncherFolder folder in layout.folders) folder.id == folderId ? folder.copyWith(apps: folder.apps.where((String app) => app != package).toList()) : folder,
+    ]));
+
+/// [layout] with folder [folderId] called [name] ("Folder" when blank).
+LauncherLayout renameFolder(LauncherLayout layout, String folderId, String name) => layout.copyWith(folders: <LauncherFolder>[
+      for (final LauncherFolder folder in layout.folders) folder.id == folderId ? folder.copyWith(name: name.trim().isEmpty ? 'Folder' : name.trim()) : folder,
+    ]);
+
+/// Folders with one app become that app, empty ones go (except [keep], just made).
+LauncherLayout _tidyFolders(LauncherLayout layout, {String? keep}) {
+  final List<String> home = <String>[];
+  final List<LauncherFolder> folders = <LauncherFolder>[];
+  final Map<String, LauncherFolder> byItem = <String, LauncherFolder>{for (final LauncherFolder folder in layout.folders) folder.homeItem: folder};
+  for (final String item in layout.home) {
+    final LauncherFolder? folder = byItem[item];
+    if (folder == null) {
+      home.add(item);
+    } else if (folder.apps.length >= 2 || folder.id == keep) {
+      home.add(item);
+    } else if (folder.apps.length == 1) {
+      home.add(folder.apps.single);
+    }
+  }
+  for (final LauncherFolder folder in layout.folders) {
+    if (folder.apps.length >= 2 || folder.id == keep) folders.add(folder);
+  }
+  return layout.copyWith(home: home, folders: folders);
+}
+
+String _newFolderId(LauncherLayout layout) {
+  int next = 1;
+  final Set<String> used = <String>{for (final LauncherFolder folder in layout.folders) folder.id};
+  while (used.contains('$next')) {
+    next++;
+  }
+  return '$next';
+}
+
+/// Where a home tile dragged by ([dx], [dy]) from slot [from] lands, in a grid
+/// of [columns] cells [cellWidth] x [cellHeight], among [count] items: the
+/// nearest cell, held to the first and last.
+int dropIndex({required int from, required double dx, required double dy, required int columns, required double cellWidth, required double cellHeight, required int count}) {
+  if (count <= 0) return 0;
+  final int row = from ~/ columns + (dy / cellHeight).round();
+  final int column = (from % columns + (dx / cellWidth).round()).clamp(0, columns - 1);
+  return (row * columns + column).clamp(0, count - 1);
+}
+
+/// [items] with the one at [from] moved to [to], the rest shifting along.
+List<String> moveItem(List<String> items, int from, int to) {
+  if (from == to || from < 0 || from >= items.length) return List<String>.of(items);
+  final List<String> out = List<String>.of(items);
+  final String moved = out.removeAt(from);
+  out.insert(to.clamp(0, out.length), moved);
+  return out;
+}
+
+/// What a layout backup starts with, so a paste of anything else is refused.
+const String layoutBackupHeader = 'dev-launcher-layout:';
+
+/// [layout] as text to keep: copy it somewhere, paste it back to restore.
+String layoutBackup(LauncherLayout layout) => '$layoutBackupHeader${layout.encode()}';
+
+/// [layoutBackup]'s text back, or null when [text] is not one: a bad paste
+/// must never write an empty layout over the person's.
+LauncherLayout? restoreLayout(String text) {
+  final String trimmed = text.trim();
+  if (!trimmed.startsWith(layoutBackupHeader)) return null;
+  try {
+    final Object? decoded = jsonDecode(trimmed.substring(layoutBackupHeader.length));
+    if (decoded is! Map) return null;
+  } on FormatException {
+    return null;
+  }
+  return LauncherLayout.decode(trimmed.substring(layoutBackupHeader.length));
+}
+
+/// [items] whose words (from [words]) start with, or contain, [query]; two
+/// letters at least, since one is an app search.
+List<T> matchKeywords<T>(List<T> items, String query, List<String> Function(T item) words) {
+  final String wanted = query.trim().toLowerCase();
+  if (wanted.length < 2) return <T>[];
+  final List<T> starts = <T>[];
+  final List<T> contains = <T>[];
+  for (final T item in items) {
+    final List<String> lower = <String>[for (final String word in words(item)) word.toLowerCase()];
+    if (lower.any((String word) => word.startsWith(wanted) || word.split(RegExp(r'[\s\-&]+')).any((String part) => part.startsWith(wanted)))) {
+      starts.add(item);
+    } else if (lower.any((String word) => word.contains(wanted))) {
+      contains.add(item);
+    }
+  }
+  return <T>[...starts, ...contains];
+}
+
+/// The phone's browser on a search page for [query].
+String webSearchUrl(String query) => 'https://www.google.com/search?q=${Uri.encodeComponent(query.trim())}';
+
+/// A contact the search can offer: a name and a number to dial.
+class const LauncherContact({required final String name, final String phone = ''});
+
+/// [contacts] whose name has a word starting with [query], or whose number
+/// holds its digits; two characters at least.
+List<LauncherContact> matchContacts(List<LauncherContact> contacts, String query) {
+  final String wanted = query.trim().toLowerCase();
+  if (wanted.length < 2) return const <LauncherContact>[];
+  final String digits = wanted.replaceAll(RegExp(r'[^0-9]'), '');
+  return <LauncherContact>[
+    for (final LauncherContact contact in contacts)
+      if (contact.name.toLowerCase().split(RegExp(r'\s+')).any((String word) => word.startsWith(wanted)) || contact.name.toLowerCase().startsWith(wanted) || (digits.length >= 3 && digits.length == wanted.replaceAll(' ', '').length && contact.phone.replaceAll(RegExp(r'[^0-9]'), '').contains(digits))) contact,
+  ];
+}
+
+/// [apps] without the [hidden] ones.
+List<LauncherApp> visibleApps(List<LauncherApp> apps, List<String> hidden) {
+  if (hidden.isEmpty) return apps;
+  final Set<String> out = hidden.toSet();
+  return <LauncherApp>[for (final LauncherApp app in apps) if (!out.contains(app.packageName)) app];
 }
 
 /// The screens Dev Launcher lays out for.
