@@ -7,7 +7,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 /// This build's version. A test keeps it equal to pubspec.yaml's.
-const String launcherVersion = '0.1.14';
+const String launcherVersion = '0.1.15';
 
 /// The newest published (not pre-release) version, as GitHub answers it.
 final Uri latestReleaseApi = Uri.parse('https://api.github.com/repos/Danroyal001/dev_launcher/releases/latest');

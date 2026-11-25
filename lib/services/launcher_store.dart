@@ -46,6 +46,7 @@ class const LauncherSnapshot({
   final bool isDefault = true,
   final String problem = '',
   final List<String> systemDock = const <String>[],
+  final Map<String, int> badges = const <String, int>{},
 }) {
   DVInstalledApp? app(String package) {
     for (final DVInstalledApp each in apps) {
@@ -72,7 +73,16 @@ class const LauncherSnapshot({
 
   List<LauncherApp> get launcherApps => <LauncherApp>[for (final DVInstalledApp each in apps) LauncherApp(packageName: each.packageName, label: each.label)];
 
-  LauncherSnapshot copyWith({List<DVInstalledApp>? apps, LauncherLayout? layout, List<String>? recents, bool? preview, bool? loading, bool? isDefault, String? problem, List<String>? systemDock}) => LauncherSnapshot(
+  /// The apps the drawer and its search show: every app but the hidden ones.
+  List<LauncherApp> get visibleLauncherApps => visibleApps(launcherApps, layout.hidden);
+
+  /// How many notifications [package] is showing, when badges are on.
+  int badgeFor(String package) => layout.options.badges ? (badges[package] ?? 0) : 0;
+
+  /// How many notifications the apps in [folder] are showing between them.
+  int folderBadge(LauncherFolder folder) => <int>[for (final String package in folder.apps) badgeFor(package)].fold(0, (int sum, int each) => sum + each);
+
+  LauncherSnapshot copyWith({List<DVInstalledApp>? apps, LauncherLayout? layout, List<String>? recents, bool? preview, bool? loading, bool? isDefault, String? problem, List<String>? systemDock, Map<String, int>? badges}) => LauncherSnapshot(
         apps: apps ?? this.apps,
         layout: layout ?? this.layout,
         recents: recents ?? this.recents,
@@ -81,6 +91,7 @@ class const LauncherSnapshot({
         isDefault: isDefault ?? this.isDefault,
         problem: problem ?? this.problem,
         systemDock: systemDock ?? this.systemDock,
+        badges: badges ?? this.badges,
       );
 }
 
@@ -159,6 +170,7 @@ class LauncherStore {
     // phone with many apps is still answering.
     final List<DVInstalledApp> remembered = decodeAppNames(await _readText(appsFile));
     _emit(_current.copyWith(layout: layout, recents: recents, apps: remembered, loading: remembered.isEmpty));
+    _followSystem();
     await _listOrRetry();
   }
 
@@ -459,4 +471,63 @@ class LauncherStore {
   /// Puts the drawer's letter index on [side], or back on the end of the
   /// phone's reading direction ([IndexSide.device]).
   Future<String> setIndexSide(IndexSide side) => saveLayout(_current.layout.copyWith(indexSide: side));
+
+  StreamSubscription<DVPackageChange>? _packageChanges;
+  StreamSubscription<Map<String, int>>? _badgeCounts;
+
+  /// Installs, uninstalls and updates as Android broadcasts them, and the
+  /// notification counts for badges, for as long as the launcher runs.
+  void _followSystem() {
+    _packageChanges ??= DV.Platform.apps.packageChanges.listen((DVPackageChange change) {
+      // Asked now, not on the next return to the front: the drawer is open
+      // while an app installs from the Play Store.
+      unawaited(refreshApps());
+    }, onError: (Object _) {});
+    _badgeCounts ??= DV.Platform.apps.notificationCounts.listen((Map<String, int> counts) {
+      _emit(_current.copyWith(badges: counts));
+    }, onError: (Object _) {});
+  }
+
+  /// [package] off the drawer and its search ([hidden]), or back on. Its
+  /// place on the home screen or in the dock is kept.
+  Future<String> hideApp(String package, {required bool hidden}) {
+    final List<String> next = hidden ? <String>[..._current.layout.hidden.where((String each) => each != package), package] : _current.layout.hidden.where((String each) => each != package).toList();
+    return saveLayout(_current.layout.copyWith(hidden: next, dock: _current.dock, dockChosen: true));
+  }
+
+  /// [package] into folder [folderId], or a new folder called [name].
+  Future<String> putInFolder(String package, {String? folderId, String name = 'Folder'}) =>
+      saveLayout(addToFolder(_current.layout.copyWith(dock: _current.dock, dockChosen: true), package, folderId: folderId, folderName: name));
+
+  /// [package] out of folder [folderId], onto the home screen if the folder
+  /// is left with one app.
+  Future<String> takeOutOfFolder(String folderId, String package) => saveLayout(removeFromFolder(_current.layout, folderId, package));
+
+  /// Folder [folderId] called [name].
+  Future<String> nameFolder(String folderId, String name) => saveLayout(renameFolder(_current.layout, folderId, name));
+
+  /// The home screen item at [from] moved to [to].
+  Future<String> moveHomeItem(int from, int to) => saveLayout(_current.layout.copyWith(home: moveItem(_current.layout.home, from, to), dock: _current.dock, dockChosen: true));
+
+  /// The launcher's own settings.
+  Future<String> setOptions(LauncherOptions options) => saveLayout(_current.layout.copyWith(options: options));
+
+  /// A layout from a backup, in place of this one.
+  Future<String> restore(LauncherLayout layout) => saveLayout(layout);
+
+  /// The phone's contacts, for the search (asks for the permission the first
+  /// time). Empty when the person said no or the phone cannot say.
+  Future<List<LauncherContact>> contacts() async {
+    if (_contacts != null) return _contacts!;
+    if (_current.preview) return const <LauncherContact>[];
+    try {
+      final List<Map<String, String>> found = await DV.Platform.contacts.getContacts();
+      _contacts = <LauncherContact>[for (final Map<String, String> each in found) if ((each['name'] ?? '').isNotEmpty) LauncherContact(name: each['name']!, phone: each['phone'] ?? '')];
+    } on Object {
+      return const <LauncherContact>[];
+    }
+    return _contacts!;
+  }
+
+  List<LauncherContact>? _contacts;
 }

@@ -12,11 +12,13 @@ import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 import '../services/device_abi.dart';
 import '../services/launcher_logic.dart';
+import '../services/launcher_store.dart';
 import '../services/updates.dart';
 import 'theme.dart';
 
 @DVFunctionalWidget()
 Widget _updatesScreen(BuildContext context, {VoidCallback? onClose}) {
+  followLauncherTheme(context, LauncherStore.instance.current.layout.options);
   void close() => onClose != null ? onClose() : DV.Navigation.back();
   final LauncherUpdates updates = LauncherUpdates.instance;
   final DVSignal<UpdateCheck> state = context.signal(updates.current);
@@ -101,7 +103,7 @@ Widget _updatesScreen(BuildContext context, {VoidCallback? onClose}) {
   final Widget body = DVBox.list(<Widget>[
     DVText('This phone: Dev Launcher $launcherVersion${abi.isEmpty ? '' : ' ($abi)'}').modifier(mono(size: 14)),
     if (check.checking && release == null) DVText('Asking GitHub for the newest version…').modifier(mono(size: 14, color: LauncherColors.muted).semanticRole('status')),
-    if (check.problem.isNotEmpty) DVText(check.problem).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (check.problem.isNotEmpty) DVText(check.problem).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
     if (release != null) ...<Widget>[
       DVText(updateHeadline(launcherVersion, release)).modifier(mono(size: 18, bold: true, color: isNewer(release) ? LauncherColors.accent : LauncherColors.text).semanticHeading(2).semanticRole('status')),
       DVText('Newest: ${release.version}$published').modifier(mono(size: 13, color: LauncherColors.muted)),
@@ -113,7 +115,7 @@ Widget _updatesScreen(BuildContext context, {VoidCallback? onClose}) {
         DVText(release.notes).modifier(mono(size: 13).maxWidth(720)),
       ],
     ],
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
     DVBox.wrapLine(<Widget>[
       button(check.checking ? 'Checking…' : 'Check again', 'Check for updates again', () => unawaited(updates.check())),
       button('All releases', 'Share the link to every release', () => share(releasesPage)),

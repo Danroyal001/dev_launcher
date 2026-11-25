@@ -70,7 +70,41 @@ The Android home screen for developers. Built with [Dartvel](https://dartvel.dev
 - **Labels and the prompt on the layout.** Each name sits under its icon by the tile's own column
   (same 6 px gap, centred), and the prompt sign is centred on the command line by the row; no
   margin nudges (tested at 320, 360 and 412 px wide).
-- A dark editor palette and JetBrains Mono. Pins are kept on the phone.
+- **The app's own shortcuts on a long press**, as on Pixel and Lawnchair: "New chat", "Scan",
+  each with its icon, opened straight into the app (Android's LauncherApps; shown once Dev
+  Launcher is the home app). The same menu has open, home, dock, folder, hide, arrange, info and
+  uninstall.
+- **Folders.** "to folder" puts an app in a new folder (in the app's place on the home screen) or
+  an existing one. A folder shows its first four icons; tap opens it, its name is edited in place,
+  and an app taken out of a folder of two leaves the other on the home screen.
+- **Drag to rearrange.** "arrange home" (on any home app's menu) lets a finger drag apps and
+  folders to new places; "Done arranging", Back or Home ends it.
+- **Hidden apps.** "hide" keeps an app out of all apps and the search (its place on home or the
+  dock is kept); the settings list them with "unhide".
+- **Notification badges.** A count on every app with notifications, folders adding theirs up and
+  screen readers saying it ("WhatsApp, 3 notifications"). Allow "Dev Launcher badges" under
+  notification access once (launcher settings → give notification access). Only counts are read,
+  never what a notification says; ongoing ones and channels with badges off are not counted.
+- **Gestures.** Swipe down pulls the notification shade down; double-tap the clock locks the
+  screen (through the "Dev Launcher Recents" accessibility service, which Android requires for
+  locking); pinch, or a long press on the clock, opens the launcher settings. Each can be turned
+  off.
+- **The search finds more than apps.** The phone's settings pages ("wifi", "battery",
+  "developer"), your contacts when you turn that on (tap opens the dialer), and "Search the web
+  for ..." in the browser.
+- **Installs show up at once.** Apps installed, updated or uninstalled while Dev Launcher is open
+  appear or leave as Android announces them, not only on the next return home.
+- **Launcher settings** (pinch, a long press on the clock, "settings" in the drawer or typed on the
+  prompt): home app, theme, wallpaper picker, gestures, badges, search, hidden apps, letter index side,
+  Recents button settings, backup and restore of the whole layout (copied to the clipboard as text,
+  pasted back to restore; anything else pasted is refused), the phone's own settings and updates.
+- **Light and dark.** All apps, menus, folders and the settings follow the phone's dark theme, or
+  always dark or always light ("theme" in the launcher settings). The clock, prompt, home screen and
+  dock stay light text on the wallpaper's scrim, as on Pixel Launcher.
+- **Turns with the phone.** On its side, on a tablet either way and on an opened foldable, the home
+  screen, the drawer and the settings lay out with nothing cut off, and an open drawer stays open
+  through a turn (tested at 800x360, 915x412, 800x1280, 1280x800 and 673x841).
+- An editor palette and JetBrains Mono. Pins are kept on the phone.
 
 ## Use it as your home screen
 

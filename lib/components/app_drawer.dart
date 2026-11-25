@@ -18,7 +18,8 @@ import 'launcher_home.dart' show deviceLocale, followStore;
 import 'theme.dart';
 
 @DVFunctionalWidget()
-Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates}) {
+Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<double>? onDrag, ValueChanged<double>? onDragEnd, VoidCallback? onUpdates, VoidCallback? onSettings}) {
+  followLauncherTheme(context, LauncherStore.instance.current.layout.options);
   // Embedded in the home screen, the drawer is closed by the home screen;
   // on its own (/apps) it goes back.
   void close() => onClose != null ? onClose() : DV.Navigation.back();
@@ -80,12 +81,14 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   void more(String package) => selected.value = package;
 
   final String query = search.value.trim();
-  final List<LauncherApp> shown = query.isEmpty ? current.launcherApps : matchApps(current.launcherApps, query);
+  final List<LauncherApp> shown = query.isEmpty ? current.visibleLauncherApps : matchApps(current.visibleLauncherApps, query);
   final List<LetterSection> sections = letterSections(shown);
   final Map<String, int> appsPerLetter = <String, int>{for (final LetterSection section in sections) section.letter: section.apps.length};
   // Not on a watch, and not before the screen has a height (the first frame
   // can have none): 27 letters need room.
-  final bool showIndex = !watch && sections.isNotEmpty && size.height >= 360;
+  // While the keyboard is up the index steps aside, as on Pixel and
+  // Lawnchair: in the room above the keyboard its 27 letters would squash.
+  final bool showIndex = !watch && sections.isNotEmpty && size.height >= 360 && !keyboardUp(context);
   // The index on the end edge of the reading direction: right on most phones,
   // left on a phone set to a right-to-left language (Arabic, Hebrew, Urdu...),
   // unless the person chose a side in the drawer settings.
@@ -123,7 +126,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     onEnd: (ScaleEndDetails details) => onDragEnd?.call(details.velocity.pixelsPerSecond.dy),
   ));
   final Widget handle = DVBox(
-    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
+    DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(LauncherColors.rule).rounded(3)),
     DVModifier().centered().paddingSymmetric(vertical: 10).tooltip('Drag down, or tap, to close all apps').onTap(close),
   );
   final Widget header = DVBox.list(<Widget>[
@@ -151,7 +154,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
           DVText('×').modifier(
             mono(size: 22, color: LauncherColors.muted).centered().minimumTapTarget(width: 44, height: 44).semanticLabel('Clear search').tooltip('Clear search').onTap(() => search.value = ''),
           ),
-      ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(const Color(0xCC151B23)).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
+      ], spacing: 4, crossAlign: DVCrossAlign.center, modifier: DVModifier().backgroundColor(LauncherColors.surface).border(Border.all(color: LauncherColors.rule)).rounded(12).paddingOnly(left: 14, right: 4, top: 4, bottom: 4).maxWidth(720)),
   ], spacing: 8, modifier: DVModifier().backgroundColor(LauncherColors.page).paddingOnly(left: side, right: side, top: (watch ? side * 0.4 : 4), bottom: 8).merge(embedded ? dragDown : DVModifier()));
 
   final Widget settingsLink = DVText(settingsOpen.value ? 'hide settings' : 'drawer settings').modifier(mono(size: 13, color: settingsOpen.value ? LauncherColors.accent : LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Drawer settings').tooltip(settingsOpen.value ? 'Hide the drawer settings' : 'Drawer settings: which side the letter index is on').onTap(() => settingsOpen.value = !settingsOpen.read()));
@@ -160,10 +163,11 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
     // header stays one line on the smallest phone with the largest font.
     // Updates on the left, the drawer's settings on the right, one line.
     if (!watch)
-      DVBox.row(<Widget>[
+      DVBox.wrapLine(<Widget>[
         DVText('updates · $launcherVersion').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Updates: this phone has Dev Launcher $launcherVersion').tooltip('Which version this phone has, and the newest one to download').onTap(() => onUpdates != null ? onUpdates() : DV.Navigation.navigate(DVRoutes.updates))),
+        if (onSettings != null) DVText('settings').modifier(mono(size: 13, color: LauncherColors.muted).paddingSymmetric(horizontal: 8, vertical: 10).minimumTapTarget(width: 48, height: 48).semanticLabel('Launcher settings').tooltip('Launcher settings: gestures, badges, hidden apps, wallpaper, backup').onTap(onSettings)),
         settingsLink,
-      ], spacing: 0, align: DVAlign.spaceBetween, crossAlign: DVCrossAlign.center),
+      ], spacing: 0),
     if (settingsOpen.value && !watch) drawerSettings,
     // The apps opened last, newest first: one row, above the A-Z list, as
     // phone launchers put their suggestions. Hidden while searching, where it
@@ -172,10 +176,10 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
       DVBox.list(<Widget>[
         DVText('recent').modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
         DVBox.grid(<Widget>[
-          for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
+          for (final DVInstalledApp app in recent) AppTile(app: app, iconSize: iconSize, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
         ], columns: columns, spacing: 4, responsive: false),
       ], spacing: 8),
-    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(const Color(0xCC151B23)).rounded(8).padding(10).semanticRole('status')),
+    if (status.value.isNotEmpty) DVText(status.value).modifier(mono(size: 13).backgroundColor(LauncherColors.surface).rounded(8).padding(10).semanticRole('status')),
     if (current.loading) DVText('reading apps…').modifier(mono(size: 13, color: LauncherColors.muted)),
     if (!current.loading && shown.isEmpty) DVText('No app matches "$query".').modifier(mono(size: 14)),
     for (final LetterSection section in sections)
@@ -185,10 +189,12 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
         child: DVBox.list(<Widget>[
           DVText(section.letter).modifier(mono(size: 13, bold: true, color: LauncherColors.accent).semanticHeading(2)),
           DVBox.grid(<Widget>[
-            for (final DVInstalledApp app in installedFor(current, section.apps)) AppTile(app: app, iconSize: iconSize, onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
+            for (final DVInstalledApp app in installedFor(current, section.apps)) AppTile(app: app, iconSize: iconSize, badge: current.badgeFor(app.packageName), onOpen: () => open(app.packageName), onMore: () => more(app.packageName)),
           ], columns: columns, spacing: 4, responsive: false),
         ], spacing: 8),
       ),
+    if (query.isNotEmpty && !watch)
+      SearchExtras(query: query, snapshot: current, onDone: (String problem) => status.value = problem),
   ], spacing: 16, modifier: DVModifier().paddingOnly(left: showIndex && indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, right: showIndex && !indexLeft ? (kind == ScreenKind.tv ? 44 : 34) : side, top: 8, bottom: 12)).scrollable();
 
   // The letter index: # and A to Z down the right edge, each letter one cell
@@ -230,7 +236,7 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
               .onTap(() => jump(letter)),
         )
       : DVText(letter).modifier(
-          mono(size: letterSize, color: const Color(0x668B949E)).width(indexWidth).fill().centered().semanticLabel('$letter, no apps start with $letter').tooltip('$letter, no apps start with $letter: goes to the next letter that has some').onTap(() => jump(letter)),
+          mono(size: letterSize, color: LauncherColors.muted.withValues(alpha: 0.4)).width(indexWidth).fill().centered().semanticLabel('$letter, no apps start with $letter').tooltip('$letter, no apps start with $letter: goes to the next letter that has some').onTap(() => jump(letter)),
         );
   // Two halves: a Dartvel list longer than 24 builds its far rows later, and
   // every letter must be there at once. Each half takes half the height and
@@ -264,16 +270,21 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   return DVBox.stack(<Widget>[
     // The header as tall as its contents need, whatever the font size, and
     // the list the rest of the screen.
-    DVBox.list(<Widget>[header, DVBox(list, DVModifier().fill())], spacing: 0, modifier: DVModifier().height(size.height)),
+    // the list the rest of the screen down to the keyboard, when it is up.
+    DVBox.list(<Widget>[header, DVBox(list, DVModifier().fill()), keyboardRoom(context)], spacing: 0, modifier: DVModifier().height(size.height)),
     if (showIndex) placedIndex,
     if (showIndex) ?bubble,
     if (sheetApp != null)
-      DVBox(
-        AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
-          status.value = problem;
-          selected.value = '';
-        }),
-        DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+      aboveKeyboard(
+        context,
+        DVBox(
+          AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
+            status.value = problem;
+            selected.value = '';
+          }),
+          DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+        ),
+        height: size.height,
       ),
   ], modifier: DVModifier().backgroundColor(LauncherColors.page).minHeight(size.height).merge(embedded ? DVModifier() : DVModifier().onSwipeDown(close)));
 }
