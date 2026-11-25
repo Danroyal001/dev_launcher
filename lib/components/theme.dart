@@ -67,3 +67,39 @@ const LinearGradient wallpaperScrim = LinearGradient(
 /// [mono] for what sits on the wallpaper: light text over the scrim unless
 /// [color] says otherwise.
 DVModifier wallMono({double size = 14, bool bold = false, Color? color}) => mono(size: size, bold: bold, color: color ?? WallpaperColors.text);
+
+// The on-screen keyboard. The launcher's pages do not shrink for it
+// (resizeToAvoidBottomInset: false), so the home screen, the dock and the
+// drawer keep their size and place while it comes and goes. Owner, 25 Nov
+// (Tecno, 0.1.14): with the page shrinking each frame of the keyboard's
+// slide, the dock jumped behind the drawer, the letter index squashed and the
+// drawer's animated height chased the keyboard, showing the home screen
+// under it. Instead, what must stay in sight ends where the keyboard begins.
+
+/// How far the keyboard reaches up the page, from its bottom edge: nothing
+/// while it is down.
+double keyboardOver(BuildContext context) => MediaQuery.viewInsetsOf(context).bottom;
+
+/// Whether the on-screen keyboard is up over the page.
+bool keyboardUp(BuildContext context) => keyboardOver(context) > 0;
+
+/// The room the keyboard takes at the bottom of a column: put last, so the
+/// filling child above it ends at the keyboard's top.
+Widget keyboardRoom(BuildContext context) => DVBox.list(const <Widget>[], spacing: 0, modifier: DVModifier().height(keyboardOver(context)));
+
+/// The navigation bar's room at the bottom of the page when the page reaches
+/// under it: Dartvel 3.47.9 lets a page that does not resize for the keyboard
+/// grow under the navigation bar while the keyboard covers the bar, which
+/// moved the dock down. Nothing on a Dartvel that keeps the page above the bar.
+Widget navigationBarRoom(BuildContext context) => DVBox.list(const <Widget>[], spacing: 0, modifier: DVModifier().height(MediaQuery.viewPaddingOf(context).bottom));
+
+/// [child] laid out in the part of a [height]-tall page the keyboard leaves.
+Widget aboveKeyboard(BuildContext context, Widget child, {required double height}) =>
+    DVBox.list(<Widget>[DVBox(child, DVModifier().fill()), keyboardRoom(context)], spacing: 0, modifier: DVModifier().height(height));
+
+/// Puts the keyboard away. True when it was up.
+bool putKeyboardAway(BuildContext context) {
+  final bool wasUp = keyboardUp(context);
+  FocusManager.instance.primaryFocus?.unfocus();
+  return wasUp;
+}

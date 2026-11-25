@@ -108,6 +108,8 @@ Widget _launcherHome(BuildContext context) {
   }
 
   void closeDrawer() {
+    // The search field goes with the drawer: no keyboard left over the home screen.
+    putKeyboardAway(context);
     dragging.value = false;
     drawerTop.value = null;
     releaseBackWhenIdle();
@@ -122,6 +124,12 @@ Widget _launcherHome(BuildContext context) {
     stopBack.value ??= DV.Navigation.onBack(() {
       // A home screen that is gone (rebuilt from scratch) answers nothing.
       if (!context.mounted) return false;
+      // The keyboard first: Back puts it away and leaves the drawer open, as
+      // Android does when Back reaches the keyboard before the app.
+      if (putKeyboardAway(context)) {
+        SignalLog.instance.note('backHandled', 'the keyboard');
+        return true;
+      }
       if (overlay.read() == 'settings') {
         SignalLog.instance.note('backHandled', 'Recents settings');
         show(settingsFrom.read());
@@ -450,17 +458,20 @@ Widget _launcherHome(BuildContext context) {
   ));
   final double top = drawerTop.value ?? size.height;
   final Widget drawer = DVBox(
-    AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer, onSettings: () {
+    DVBox(AppDrawer(onClose: closeDrawer, onDrag: dragDrawer, onDragEnd: releaseDrawer, onSettings: () {
       show('launcher-settings');
       closeDrawer();
     }, onUpdates: () {
       // Updates first, so closing the drawer keeps Back for it.
       show('updates');
       closeDrawer();
-    }),
+    }), DVModifier().height(size.height)),
     // Always animated, with no duration while a finger drags: switching the
     // animation off rebuilt the drawer and cancelled the drag after one move.
-    DVModifier().offset(0, top).height(size.height).animate(dragging.value ? .zero : const Duration(milliseconds: 220)),
+    // Only the slide is animated, never the height: an animated height chased
+    // every change of the screen and left the home screen showing under the
+    // drawer (0.1.14, with the keyboard).
+    DVModifier().offset(0, top).animate(dragging.value ? .zero : const Duration(milliseconds: 220)),
   );
   final Widget dragHandle = DVBox(
     DVText('').modifier(DVModifier().width(44).height(5).backgroundColor(const Color(0x88FFFFFF)).rounded(3)),
@@ -483,7 +494,19 @@ Widget _launcherHome(BuildContext context) {
           pinch.value = 1;
         },
       ))),
-      if (!watch) DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 8).centered().merge(dragUp)),
+      // The dock at the bottom, in a band at least as tall as the keyboard:
+      // with the keyboard up the content above ends at its top, and the dock
+      // stays where it was, behind it.
+      if (!watch)
+        DVBox(
+          DVBox.list(<Widget>[
+            DVBox(DVBox.list(<Widget>[dragHandle, dockRow], spacing: 0), DVModifier().paddingOnly(left: side, right: side, bottom: 8).centered().merge(dragUp)),
+            navigationBarRoom(context),
+          ], spacing: 0),
+          DVModifier().minHeight(keyboardOver(context)).align(Alignment.bottomCenter),
+        )
+      else
+        keyboardRoom(context),
     ], spacing: 0, modifier: DVModifier().height(size.height)),
     drawer,
     if (overlay.value == 'recents') RecentsScreen(onClose: () => show(''), onSettings: () {
@@ -502,42 +525,52 @@ Widget _launcherHome(BuildContext context) {
         onUpdates: () => show('updates'),
       ),
     if (openFolder != null)
-      DVBox(
-        FolderView(
-          folder: openFolder,
-          snapshot: current,
-          columns: columns,
-          iconSize: iconSize,
-          onOpen: (String package) {
-            show('');
-            open(package);
-          },
-          onMore: (String package) {
-            sheetFolder.value = openFolder.id;
-            selected.value = package;
-          },
-          onClose: () => show(''),
+      // Centred in the room the keyboard leaves: renaming a folder keeps its
+      // name in sight.
+      aboveKeyboard(
+        context,
+        DVBox(
+          FolderView(
+            folder: openFolder,
+            snapshot: current,
+            columns: columns,
+            iconSize: iconSize,
+            onOpen: (String package) {
+              show('');
+              open(package);
+            },
+            onMore: (String package) {
+              sheetFolder.value = openFolder.id;
+              selected.value = package;
+            },
+            onClose: () => show(''),
+          ),
+          DVModifier().align(Alignment.center).padding(16),
         ),
-        DVModifier().align(Alignment.center).padding(16),
+        height: size.height,
       ),
     if (sheetApp != null)
-      DVBox(
-        AppSheet(
-          app: sheetApp,
-          snapshot: current,
-          folderId: sheetFolder.value,
-          onArrange: () {
-            show('');
-            arranging.value = true;
-            claimBack();
-          },
-          onDone: (String problem) {
-            status.value = problem;
-            selected.value = '';
-            sheetFolder.value = '';
-          },
+      aboveKeyboard(
+        context,
+        DVBox(
+          AppSheet(
+            app: sheetApp,
+            snapshot: current,
+            folderId: sheetFolder.value,
+            onArrange: () {
+              show('');
+              arranging.value = true;
+              claimBack();
+            },
+            onDone: (String problem) {
+              status.value = problem;
+              selected.value = '';
+              sheetFolder.value = '';
+            },
+          ),
+          DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
         ),
-        DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+        height: size.height,
       ),
   ], modifier: DVModifier().gradient(wallpaperScrim).minHeight(size.height).clipContent()), DVModifier().backgroundColor(current.preview ? WallpaperColors.page : const Color(0x00000000)));
 }

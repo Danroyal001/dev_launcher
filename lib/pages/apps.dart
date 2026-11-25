@@ -7,6 +7,10 @@ import '../dartvel_client/dartvel_client.dart';
 @DVPage(
   // A home screen is not a document: a long press is "more about this app".
   selectable: false,
+  // The keyboard covers the page rather than shrinking it: the home screen,
+  // dock and drawer stay put, and what must stay in sight ends at the
+  // keyboard (see keyboardRoom in components/theme.dart).
+  resizeToAvoidBottomInset: false,
   // A home screen is not a document: a long press is "more about this app".
   title: 'All apps',
   description: 'Every app on the phone, A to Z, with search and a letter index.',

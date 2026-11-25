@@ -86,7 +86,9 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   final Map<String, int> appsPerLetter = <String, int>{for (final LetterSection section in sections) section.letter: section.apps.length};
   // Not on a watch, and not before the screen has a height (the first frame
   // can have none): 27 letters need room.
-  final bool showIndex = !watch && sections.isNotEmpty && size.height >= 360;
+  // While the keyboard is up the index steps aside, as on Pixel and
+  // Lawnchair: in the room above the keyboard its 27 letters would squash.
+  final bool showIndex = !watch && sections.isNotEmpty && size.height >= 360 && !keyboardUp(context);
   // The index on the end edge of the reading direction: right on most phones,
   // left on a phone set to a right-to-left language (Arabic, Hebrew, Urdu...),
   // unless the person chose a side in the drawer settings.
@@ -268,16 +270,21 @@ Widget _appDrawer(BuildContext context, {VoidCallback? onClose, ValueChanged<dou
   return DVBox.stack(<Widget>[
     // The header as tall as its contents need, whatever the font size, and
     // the list the rest of the screen.
-    DVBox.list(<Widget>[header, DVBox(list, DVModifier().fill())], spacing: 0, modifier: DVModifier().height(size.height)),
+    // the list the rest of the screen down to the keyboard, when it is up.
+    DVBox.list(<Widget>[header, DVBox(list, DVModifier().fill()), keyboardRoom(context)], spacing: 0, modifier: DVModifier().height(size.height)),
     if (showIndex) placedIndex,
     if (showIndex) ?bubble,
     if (sheetApp != null)
-      DVBox(
-        AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
-          status.value = problem;
-          selected.value = '';
-        }),
-        DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+      aboveKeyboard(
+        context,
+        DVBox(
+          AppSheet(app: sheetApp, snapshot: current, onDone: (String problem) {
+            status.value = problem;
+            selected.value = '';
+          }),
+          DVModifier().align(Alignment.bottomCenter).padding(watch ? side * 0.5 : 16),
+        ),
+        height: size.height,
       ),
   ], modifier: DVModifier().backgroundColor(LauncherColors.page).minHeight(size.height).merge(embedded ? DVModifier() : DVModifier().onSwipeDown(close)));
 }
