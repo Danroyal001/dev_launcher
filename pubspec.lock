@@ -101,34 +101,34 @@ packages:
     dependency: "direct dev"
     description:
       name: dartvel_cli
-      sha256: "5d00fdc99f8647459950cf94ab5e60d99ebc552baad798703d2349d5832a0aab"
+      sha256: "1f11df3e8345252b48311deeeb9ad865b731bc0d57e7bef31e6d4312e61e2aed"
       url: "https://pub.dev"
     source: hosted
-    version: "3.47.8"
+    version: "3.47.9"
   dartvel_core:
     dependency: "direct main"
     description:
       name: dartvel_core
-      sha256: "08dae44eb2bff89cfb3b5dbeeb8a9a081b16d4d5ba5763026cf95869e538577b"
+      sha256: "9710824778be4c43da0d54fc9423b5fd1edf60113441147b0b3f0d02961685c6"
       url: "https://pub.dev"
     source: hosted
-    version: "3.47.8"
+    version: "3.47.9"
   dartvel_flutter:
     dependency: "direct main"
     description:
       name: dartvel_flutter
-      sha256: "24f76144668bb83a88eefedd7cf3821cc360ae010fa3c4b6f57f4a7e3d728d54"
+      sha256: fe9b6c0571f40c1de9e884af5a67b0c9847988529d052954edf68df656ea86c9
       url: "https://pub.dev"
     source: hosted
-    version: "3.47.8"
+    version: "3.47.9"
   dartvel_shelf:
     dependency: "direct main"
     description:
       name: dartvel_shelf
-      sha256: fc5f080aee6a8a96f13e207e01bd94c583232e699e65f3736735d85ce73204ce
+      sha256: d330b3d7eefb4370bcf562049792133ae19acc26eddeb59b990fe0aa37c25ace
       url: "https://pub.dev"
     source: hosted
-    version: "3.47.8"
+    version: "3.47.9"
   dbus:
     dependency: transitive
     description:
