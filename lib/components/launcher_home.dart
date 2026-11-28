@@ -323,11 +323,18 @@ Widget _launcherHome(BuildContext context) {
   final LauncherFolder? openFolder = overlay.value.startsWith(folderPrefix) ? current.layout.folder(overlay.value.substring(folderPrefix.length)) : null;
 
   // A double tap on the clock: the screen locks, through the opt-in
-  // accessibility service; while it is off the person is told where it is.
+  // accessibility service. While the service is off, the double tap opens the
+  // phone's Accessibility settings where it is turned on, rather than a card
+  // describing where to go; only a phone that cannot open them gets the words.
   Future<void> lockScreen() async {
     if (!current.layout.options.doubleTapLock) return;
     if (await DV.Platform.apps.lockScreen()) return;
-    status.value = 'To lock with a double tap, turn on "Dev Launcher Recents" under Accessibility (launcher settings, gestures).';
+    try {
+      await DV.Platform.apps.openRecentsServiceSettings();
+      status.value = '';
+    } on Object {
+      status.value = 'To lock with a double tap, turn on "Dev Launcher Recents" under Accessibility (launcher settings, gestures).';
+    }
   }
 
   // A swipe down: the notification shade, as on every launcher.
